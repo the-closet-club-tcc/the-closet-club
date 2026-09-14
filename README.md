@@ -1,28 +1,28 @@
-# the-closet-club
-pbp midterm project - Slow Fashion & Conscious Shopping
+# The Closet Club
+PBP midterm project - Slow Fashion & Conscious Shopping
 
-# deskripsi aplikasi
+# Deskripsi Aplikasi
 The Closet Club (TCC) adalah platform komunitas fashion berbasis media sosial yang mendorong penerapan slow fashion dan conscious shopping. Pengguna dapat membagikan outfit melalui feed sebagai inspirasi, mencatat koleksi pakaian dalam digital closet, serta menandai pakaian tertentu yang tersedia untuk dibarter, ditukar tambah, atau ditawarkan kepada pengguna lain. Setiap post outfit dapat mencantumkan daftar pakaian yang digunakan. Jika pengguna lain tertarik pada salah satu item dalam outfit tersebut, mereka dapat memilih item itu dan diarahkan ke digital closet milik pengunggah untuk melihat detail pakaian dan ketersediaannya. Pengguna juga dapat berkomunikasi melalui fitur chat untuk mendiskusikan kondisi, ukuran, maupun kesepakatan sebelum melakukan pertukaran.
 
-# manfaat bagi masyarakat
+# Manfaat Bagi Masyarakat
 1. Memperpanjang usia pakai pakaian dan mengurangi limbah tekstil.
 2. Memudahkan orang menemukan pakaian secondhand/thrift yang mereka butuhkan tanpa harus membeli baru.
 3. Membangun komunitas yang peduli terhadap sustainable living.
 
-# target pengguna
+# Target Pengguna
 1. Orang yang tertarik dengan barang secondhand/thrift.
 2. Pemilik pakaian yang sudah jarang dipakai.
 3. Orang yang peduli dengan sustainable living.
 
-# anggota kelompok
-nama - npm - modul yang dikerjakan
+# Anggota Kelompok
+Nama - NPM - Modul yang Dikerjakan
 Ria Lavenia Kharissa - 2506543905 - Login, Profile & Reputation
 Nauval Adiva Daneshwara - 2506623074 - Feed & Clothing Post
 Nadya Alyssa Azzahra - 2506599270 - My Closet
 Faiz Yusuf Elriki - 2506607921 - Chat
 Naila Husna Teguh Suasono - 2506620444 - Swap / Barter
 
-# daftar modul
+# Daftar Modul
 1. Login, Profile, & Reputation
    fungsi: User bisa daftar, login, punya profil, mendapat badge verifikasi, serta rating/review dari hasil barter
    frontend: Halaman login/register, profile, edit profile, badge verified, tampilan rating & review
@@ -48,10 +48,10 @@ Naila Husna Teguh Suasono - 2506620444 - Swap / Barter
    frontend: Pilih barang → ajukan swap → accept/reject → status barter
    backend/database: 'swap_requests' (siapa menukar apa dengan apa, status request)
 
-# public / mock api
-TODO
+# Public / Mock API
+**TODO**
 
-# jenis / peran pengguna
+# Jenis / Peran Pengguna
 1. Guest (Belum Login)
    Hak akses: Hanya baca (read-only) pada konten publik.
    Bisa: Menjelajahi feed outfit inspirasi, melihat katalog pakaian publik di closet orang lain, menggunakan fitur pencarian/filter.
