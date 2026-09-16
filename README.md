@@ -16,11 +16,11 @@ The Closet Club (TCC) adalah platform komunitas fashion berbasis media sosial ya
 
 # Anggota Kelompok
 Nama - NPM - Modul yang Dikerjakan
-Ria Lavenia Kharissa - 2506543905 - Login, Profile & Reputation
-Nauval Adiva Daneshwara - 2506623074 - Feed & Clothing Post
-Nadya Alyssa Azzahra - 2506599270 - My Closet
-Faiz Yusuf Elriki - 2506607921 - Chat
-Naila Husna Teguh Suasono - 2506620444 - Swap / Barter
+1. Ria Lavenia Kharissa - 2506543905 - Login, Profile & Reputation
+2. Nauval Adiva Daneshwara - 2506623074 - Feed & Clothing Post
+3. Nadya Alyssa Azzahra - 2506599270 - My Closet
+4. Faiz Yusuf Elriki - 2506607921 - Chat
+5. Naila Husna Teguh Suasono - 2506620444 - Swap / Barter
 
 # Daftar Modul
 1. Login, Profile, & Reputation
@@ -49,7 +49,14 @@ Naila Husna Teguh Suasono - 2506620444 - Swap / Barter
    backend/database: 'swap_requests' (siapa menukar apa dengan apa, status request)
 
 # Public / Mock API
-**TODO**
+OpenStreetMap, menghitung titik temu rekomendasi di antara dua pengguna yang sedang bersepakat untuk barter pakaian, serta memfilter lokasi fasilitas umum terdekat yang aman (seperti stasiun atau minimarket) untuk proses serah-terima barang.
+
+Dokumentasi:
+1. https://wiki.openstreetmap.org/wiki/API
+2. https://taginfo.openstreetmap.org/taginfo/apidoc
+
+# Figma
+Design: https://www.figma.com/team_invite/redeem/KOtMSHkQUlfOvsd0sgdnDd?t=FXv8TF02EvT69n4W-21
 
 # Jenis / Peran Pengguna
 1. Guest (Belum Login)
@@ -60,7 +67,4 @@ Naila Husna Teguh Suasono - 2506620444 - Swap / Barter
 2. Registered User (Sudah Login)
    Hak akses: Semua hak Guest, ditambah kemampuan berinteraksi penuh.
    Bisa: Upload outfit ke feed, menambah pakaian ke My Closet, chat dengan user lain, mengajukan swap/barter.
-
-3. Verified User (Sudah Terverifikasi)
-   Hak akses: Semua hak Registered User, ditambah badge verified.
-   Bisa: Menampilkan badge verified di profil dan feed, **TODO: tentukan apakah ada pembatasan tambahan (mis. hanya user verified yang bisa barter dengan user verified lain), dan tentukan syarat verifikasi (email confirmed, KTP, jumlah barter sukses, dll).**
+   
