@@ -30,6 +30,8 @@ DEBUG = True
 
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "faiz-yusuf51-the-closet-club.pws.cs.ui.ac.id"]
 
+CSRF_TRUSTED_ORIGINS = ["https://faiz-yusuf51-the-closet-club.pws.cs.ui.ac.id"]
+
 PRODUCTION = os.getenv('PRODUCTION', 'False').lower() == 'true'
 
 if PRODUCTION:
