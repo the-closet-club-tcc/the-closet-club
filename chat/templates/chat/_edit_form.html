@@ -1,0 +1,11 @@
+<div class="msg editing flex justify-end">
+  <form hx-post="{% url 'chat:edit' m.id %}" hx-target="#messages" hx-swap="innerHTML"
+        class="flex w-full max-w-md gap-2">
+    <input name="content" value="{{ m.content }}" required autofocus
+           class="flex-1 rounded-xl border px-3 py-2">
+    <button class="rounded-xl bg-[#344536] px-3 py-2 text-white">Simpan</button>
+    <button type="button" hx-get="{% url 'chat:messages' m.conversation_id %}"
+            hx-target="#messages" hx-swap="innerHTML"
+            class="rounded-xl border px-3 py-2">Batal</button>
+  </form>
+</div>

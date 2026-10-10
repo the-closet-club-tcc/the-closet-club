@@ -4,9 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Pesan{% endblock %} | The Closet Club</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
 </head>
-<body class="bg-[#F8F3E9] text-[#292923]">
+<body class="bg-[#F8F3E9] text-[#292923]" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
   <nav class="flex h-16 items-center justify-between border-b bg-white px-8">
     <span class="text-xl font-bold">TCC</span>
     <span class="rounded-full bg-[#344536] px-4 py-2 text-sm text-white">{{ request.user.username }}</span>
