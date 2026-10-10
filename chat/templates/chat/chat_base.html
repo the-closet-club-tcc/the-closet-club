@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Pesan{% endblock %} | The Closet Club</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#F8F3E9] text-[#292923]">
+  <nav class="flex h-16 items-center justify-between border-b bg-white px-8">
+    <span class="text-xl font-bold">TCC</span>
+    <span class="rounded-full bg-[#344536] px-4 py-2 text-sm text-white">{{ request.user.username }}</span>
+  </nav>
+  <main class="p-4">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

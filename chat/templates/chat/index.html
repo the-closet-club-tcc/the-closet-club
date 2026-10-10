@@ -1,0 +1,87 @@
+{% extends 'chat/chat_base.html' %}
+
+{% block content %}
+<div class="mx-auto flex h-[calc(100dvh-6rem)] min-h-[560px] max-w-6xl overflow-hidden rounded-2xl bg-white shadow">
+
+  <!-- Kiri: daftar percakapan -->
+  <aside class="flex w-80 shrink-0 flex-col border-r">
+    <h1 class="p-6 font-serif text-3xl">Pesan</h1>
+    <div class="min-h-0 flex-1 overflow-y-auto">
+      {% for c in conversations %}
+      <a href="{% url 'chat:room' c.conversation.id %}"
+         class="flex items-center gap-3 p-4 {% if active and active.id == c.conversation.id %}bg-[#D9C7AF]{% endif %}">
+        <div class="min-w-0 flex-1">
+          <p class="font-semibold">{{ c.other.username }}</p>
+          <p class="truncate text-sm text-gray-600">{{ c.preview }}</p>
+        </div>
+        <div class="flex flex-col items-end gap-1 text-xs text-gray-500">
+          <span>{{ c.last_time|time:"H:i" }}</span>
+          {% if c.unread %}
+          <span class="rounded-full bg-[#344536] px-2 py-0.5 text-white">{{ c.unread }}</span>
+          {% endif %}
+        </div>
+      </a>
+      {% empty %}
+      <p class="p-6 text-gray-500">Belum ada percakapan</p>
+      {% endfor %}
+    </div>
+  </aside>
+
+  <!-- Kanan: chat room -->
+  <section class="flex min-w-0 flex-1 flex-col bg-[#F8F3E9]">
+    {% if active %}
+      <header class="flex items-center justify-between border-b bg-white px-6 py-4">
+        <p class="font-semibold">{{ other_user.username }}</p>
+        <button class="rounded-lg bg-[#344536] px-4 py-2 text-white">Ajukan Swap</button>
+      </header>
+
+      {% if active.item_name %}
+      <div class="m-4 rounded-xl bg-[#EFE5D8] p-3 text-sm">
+        <p class="text-xs uppercase tracking-wide text-gray-500">Item yang dibicarakan</p>
+        <p class="font-semibold">{{ active.item_name }}</p>
+      </div>
+      {% endif %}
+
+      <div id="messages" class="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-4">
+        {% for m in chat_messages %}
+          <div class="flex {% if m.sender_id == request.user.id %}justify-end{% endif %}">
+            <div class="max-w-md">
+              {% if m.message_type == 'location' %}
+                <div class="overflow-hidden rounded-xl border bg-white">
+                  <div class="h-20 bg-[#DCE3D8]"></div>
+                  <div class="p-3">
+                    <p class="text-xs uppercase text-gray-500">Lokasi pertemuan</p>
+                    <p class="font-semibold">{{ m.place_name }}</p>
+                    <p class="text-sm text-gray-600">{{ m.address }}</p>
+                    <a href="https://www.openstreetmap.org/?mlat={{ m.latitude }}&mlon={{ m.longitude }}#map=17/{{ m.latitude }}/{{ m.longitude }}"
+                       target="_blank" rel="noopener"
+                       class="mt-2 inline-block rounded-lg border border-[#344536] px-3 py-1 text-sm">Buka di Peta</a>
+                  </div>
+                </div>
+              {% else %}
+                <div class="rounded-2xl px-4 py-2 {% if m.sender_id == request.user.id %}bg-[#344536] text-white{% else %}bg-[#D9C7AF]{% endif %}">
+                  {{ m.content }}
+                </div>
+              {% endif %}
+              <p class="mt-1 text-xs text-gray-500 {% if m.sender_id == request.user.id %}text-right{% endif %}">
+                {{ m.created_at|time:"H:i" }}{% if m.is_edited %} · (diedit){% endif %}
+              </p>
+            </div>
+          </div>
+        {% empty %}
+          <p class="text-center text-gray-500">Mulai percakapan dengan menyapa</p>
+        {% endfor %}
+      </div>
+
+      <!-- Placeholder: belum berfungsi, dibuat di langkah berikutnya -->
+      <div class="border-t bg-white p-4">
+        <input disabled placeholder="Tulis pesan..." class="w-full rounded-xl border px-4 py-3">
+      </div>
+    {% else %}
+      <div class="flex flex-1 items-center justify-center text-gray-500">
+        Pilih percakapan di sebelah kiri
+      </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
