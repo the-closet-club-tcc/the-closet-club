@@ -1,0 +1,87 @@
+{% extends 'chat/chat_base.html' %}
+
+{% block content %}
+<div class="mx-auto flex h-[calc(100dvh-6rem)] min-h-[560px] max-w-6xl overflow-hidden rounded-2xl bg-white shadow">
+
+  <!-- Kiri: daftar percakapan -->
+  <aside class="flex w-80 shrink-0 flex-col border-r">
+    <h1 class="p-6 font-serif text-3xl">Pesan</h1>
+    <div class="min-h-0 flex-1 overflow-y-auto">
+      {% for c in conversations %}
+      <a href="{% url 'chat:room' c.conversation.id %}"
+         class="flex items-center gap-3 p-4 {% if active and active.id == c.conversation.id %}bg-[#D9C7AF]{% endif %}">
+        <div class="min-w-0 flex-1">
+          <p class="font-semibold">{{ c.other.username }}</p>
+          <p class="truncate text-sm text-gray-600">{{ c.preview }}</p>
+        </div>
+        <div class="flex flex-col items-end gap-1 text-xs text-gray-500">
+          <span>{{ c.last_time|time:"H:i" }}</span>
+          {% if c.unread %}
+          <span class="rounded-full bg-[#344536] px-2 py-0.5 text-white">{{ c.unread }}</span>
+          {% endif %}
+        </div>
+      </a>
+      {% empty %}
+      <p class="p-6 text-gray-500">Belum ada percakapan</p>
+      {% endfor %}
+    </div>
+  </aside>
+
+  <!-- Kanan: chat room -->
+  <section class="flex min-w-0 flex-1 flex-col bg-[#F8F3E9]">
+    {% if active %}
+      <header class="flex items-center justify-between border-b bg-white px-6 py-4">
+        <p class="font-semibold">{{ other_user.username }}</p>
+        <button class="rounded-lg bg-[#344536] px-4 py-2 text-white">Ajukan Swap</button>
+      </header>
+
+      {% if active.item_name %}
+      <div class="m-4 rounded-xl bg-[#EFE5D8] p-3 text-sm">
+        <p class="text-xs uppercase tracking-wide text-gray-500">Item yang dibicarakan</p>
+        <p class="font-semibold">{{ active.item_name }}</p>
+      </div>
+      {% endif %}
+
+      <div id="messages" class="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-4"
+          hx-get="{% url 'chat:messages' active.id %}"
+          hx-trigger="every 3s [!document.querySelector('.editing')]"
+          hx-swap="innerHTML">
+        {% include 'chat/_messages.html' %}
+      </div>
+
+      <form id="message-form" class="flex gap-2 border-t bg-white p-4"
+            hx-post="{% url 'chat:send' active.id %}"
+            hx-target="#messages" hx-swap="innerHTML">
+        <input name="content" placeholder="Tulis pesan..." autocomplete="off" required
+              class="flex-1 rounded-xl border px-4 py-3">
+        <button class="rounded-xl bg-[#344536] px-5 py-3 text-white">Kirim</button>
+      </form>
+    {% else %}
+      <div class="flex flex-1 items-center justify-center text-gray-500">
+        Pilih percakapan di sebelah kiri
+      </div>
+    {% endif %}
+  </section>
+</div>
+
+<script>
+  const box = document.getElementById('messages');
+  const form = document.getElementById('message-form');
+  let stick = true;
+  const toBottom = () => { box.scrollTop = box.scrollHeight; };
+
+  if (box && form) {
+    toBottom();
+    box.addEventListener('scroll', () => {
+      stick = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+    });
+    form.addEventListener('submit', () => { stick = true; });
+    form.addEventListener('htmx:afterRequest', (e) => {
+      if (e.detail.successful) form.reset();
+    });
+    document.body.addEventListener('htmx:afterSwap', (e) => {
+      if (e.target === box && stick) toBottom();
+    });
+  }
+</script>
+{% endblock %}
