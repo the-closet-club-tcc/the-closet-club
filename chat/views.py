@@ -2,7 +2,8 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_http_methods, require_POST
-
+from django.contrib.auth import get_user_model
+from django.shortcuts import redirect
 from .models import Conversation, Message
 
 
@@ -40,11 +41,20 @@ def chat_index(request, conversation_id=None):
             'unread': conv.messages.filter(is_read=False).exclude(sender=user).count(),
         })
 
+    new_users = None
+    if request.GET.get('new'):
+        q = request.GET.get('q', '').strip()
+        qs = get_user_model().objects.exclude(pk=user.pk)
+        if q:
+            qs = qs.filter(username__icontains=q)
+        new_users = qs.order_by('username')[:50]    
+
     return render(request, 'chat/index.html', {
         'conversations': items,
         'active': active,
         'other_user': active.other_user(user) if active else None,
         'chat_messages': chat_messages,
+        'new_users': new_users,
     })
 
 def _get_conversation(user, conversation_id):
@@ -106,3 +116,21 @@ def delete_message(request, message_id):
     conv = _get_conversation(request.user, msg.conversation_id)
     msg.delete()
     return _render_messages(request, conv)
+
+@login_required
+@require_POST
+def start_conversation(request, user_id):
+    other = get_object_or_404(get_user_model(), pk=user_id)
+    if other == request.user:
+        return redirect('chat:index')
+    conv = Conversation.objects.filter(
+        Q(user1=request.user, user2=other) | Q(user1=other, user2=request.user)
+    ).first()
+    if conv is None:
+        conv = Conversation.objects.create(user1=request.user, user2=other)
+    item_id = request.POST.get('item_id', '')
+    if item_id.isdigit():
+        conv.item_id = int(item_id)
+        conv.item_name = request.POST.get('item_name', '')[:150]
+        conv.save()
+    return redirect('chat:room', conversation_id=conv.id)
