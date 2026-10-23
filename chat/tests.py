@@ -1,14 +1,13 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.shortcuts import resolve_url
-from django.test import TestCase
 from django.urls import reverse
-
+from django.test import TestCase, override_settings
 from .models import Conversation, Message
 
 User = get_user_model()
 
-
+@override_settings(ROOT_URLCONF='chat.test_urls', LOGIN_URL='/login/')
 class ChatTestBase(TestCase):
     def setUp(self):
         self.burhania = User.objects.create_user('burhania', password='pass12345')
@@ -248,3 +247,42 @@ class DeleteMessageTests(ChatTestBase):
         self.login(self.burhania)
         self.client.post(reverse('chat:delete', args=[loc.id]))
         self.assertFalse(Message.objects.filter(pk=loc.id).exists())
+
+class StartConversationTests(ChatTestBase):
+    def test_start_creates_conversation(self):
+        self.login(self.faizy)
+        resp = self.client.post(reverse('chat:start', args=[self.amelia.id]))
+        conv = Conversation.objects.get(user1=self.faizy, user2=self.amelia)
+        self.assertRedirects(resp, reverse('chat:room', args=[conv.id]))
+
+    def test_start_reuses_existing_conversation(self):
+        self.login(self.amelia)
+        resp = self.client.post(reverse('chat:start', args=[self.burhania.id]))
+        self.assertRedirects(resp, reverse('chat:room', args=[self.conv.id]))
+        self.assertEqual(Conversation.objects.count(), 1)
+
+    def test_cannot_start_chat_with_self(self):
+        self.login(self.burhania)
+        resp = self.client.post(reverse('chat:start', args=[self.burhania.id]))
+        self.assertRedirects(resp, reverse('chat:index'))
+        self.assertEqual(Conversation.objects.count(), 1)
+
+    def test_start_stores_item(self):
+        self.login(self.faizy)
+        self.client.post(
+            reverse('chat:start', args=[self.amelia.id]),
+            {'item_id': '7', 'item_name': 'Rok Midi Olive'},
+        )
+        conv = Conversation.objects.get(user1=self.faizy, user2=self.amelia)
+        self.assertEqual(conv.item_id, 7)
+        self.assertEqual(conv.item_name, 'Rok Midi Olive')
+
+    def test_start_requires_post_and_login(self):
+        self.assertEqual(self.client.post(reverse('chat:start', args=[self.amelia.id])).status_code, 302)
+        self.login(self.burhania)
+        self.assertEqual(self.client.get(reverse('chat:start', args=[self.amelia.id])).status_code, 405)
+
+    def test_new_chat_user_list_excludes_self_and_filters(self):
+        self.login(self.burhania)
+        resp = self.client.get(reverse('chat:index'), {'new': '1', 'q': 'amel'})
+        self.assertEqual([u.username for u in resp.context['new_users']], ['amelia'])
