@@ -33,6 +33,7 @@
             <a href="#">My Closet</a>
             <a href="#">Community</a>
             <a href="#">Contact</a>
+            {% if user.is_authenticated %}<a href="{% url 'chat:index' %}">Chat</a>{% endif %}
             <a href="{% url 'login' %}" class="nav-login">Sign in</a>
             <a href="{% url 'register' %}" class="nav-register">Register</a>
         </nav>
