@@ -1,0 +1,31 @@
+
+{% load static %}
+
+<section class="auth-hero" aria-label="Sustainable fashion">
+    <img
+        class="auth-hero-image"
+        src="{% static 'img/auth-hero.jpg' %}"
+        alt="image"
+    >
+
+    <div class="auth-hero-content">
+        <p class="auth-hero-kicker">
+            A CLEANER WORLD<br>
+            A BRIGHTER WARDROBE
+        </p>
+
+        <h2>
+            Wear Again.<br>
+            Share More.<br>
+            <em>Waste Less.</em>
+        </h2>
+
+        <p class="auth-hero-description">
+            Give clothes a second life through thrift and donation.
+        </p>
+
+        <a class="auth-hero-link" href="{% url 'home' %}">
+            Explore Tcc. &rarr;
+        </a>
+    </div>
+</section>
