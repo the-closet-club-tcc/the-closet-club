@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.shortcuts import resolve_url
 from django.urls import reverse
 from django.test import SimpleTestCase, TestCase, override_settings
+from django.core.cache import cache
 from .models import Conversation, Message
 from . import osm
 
@@ -360,6 +361,15 @@ class LocationTests(ChatTestBase):
                                 {'name': 'X', 'lat': '-6.3', 'lon': '106.8'})
         self.assertEqual(resp.status_code, 404)
 
+    def test_free_text_search_without_category(self):
+            self.login(self.burhania)
+            with mock.patch('chat.views.search_places', return_value=[]) as m:
+                self.client.get(
+                    reverse('chat:places', args=[self.conv.id]),
+                    {'q': 'fakultas ilmu komputer universitas indonesia'},
+                )
+            m.assert_called_once_with('fakultas ilmu komputer universitas indonesia', '')    
+
 
 def _fake_response(payload):
     resp = mock.MagicMock()
@@ -369,6 +379,27 @@ def _fake_response(payload):
 
 
 class OsmTests(SimpleTestCase):
+    def setUp(self):
+        cache.clear()
+
+    def test_second_identical_search_uses_cache(self):
+        payload = [{'name': 'Fasilkom UI', 'display_name': 'Fasilkom UI, Depok',
+                    'lat': '-6.36', 'lon': '106.82'}]
+        with mock.patch('chat.osm.urllib.request.urlopen',
+                        return_value=_fake_response(payload)) as m:
+            first = osm.search_places('Fasilkom UI')
+            second = osm.search_places('fasilkom ui')
+        self.assertEqual(first, second)
+        self.assertEqual(m.call_count, 1)
+
+    def test_network_error_is_not_cached(self):
+        with mock.patch('chat.osm.urllib.request.urlopen', side_effect=OSError):
+            self.assertEqual(osm.search_places('depok'), [])
+        payload = [{'name': 'Depok', 'lat': '-6.4', 'lon': '106.8'}]
+        with mock.patch('chat.osm.urllib.request.urlopen',
+                        return_value=_fake_response(payload)):
+            self.assertEqual(len(osm.search_places('depok')), 1)    
+
     def test_parses_results_and_sets_user_agent(self):
         payload = [{'name': 'Stasiun Depok Baru', 'display_name': 'Stasiun Depok Baru, Depok',
                     'lat': '-6.3910001', 'lon': '106.8180002'}]
