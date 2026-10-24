@@ -1,3 +1,4 @@
+import io
 import json
 from unittest import mock
 from decimal import Decimal
@@ -7,7 +8,10 @@ from django.shortcuts import resolve_url
 from django.urls import reverse
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.core.cache import cache
-from .models import Conversation, Message
+from django.core.files.uploadedfile import SimpleUploadedFile
+from PIL import Image
+
+from .models import Conversation, Message, Attachment
 from . import osm
 
 User = get_user_model()
@@ -442,4 +446,92 @@ class OsmTests(SimpleTestCase):
         self.assertEqual(
             results[0]['address'],
             'Depok, Jalan Stasiun Depok Lama, Pancoran Mas, Depok, Jawa Barat',
-        )            
+        )
+
+def _png_bytes():
+    buf = io.BytesIO()
+    Image.new('RGB', (40, 40), 'red').save(buf, 'PNG')
+    return buf.getvalue()
+
+class AttachmentTests(ChatTestBase):
+    def _send(self, upload, user=None):
+        self.login(user or self.burhania)
+        return self.client.post(
+            reverse('chat:send_attachment', args=[self.conv.id]), {'file': upload},
+        )
+
+    def test_upload_image_is_normalized_to_jpeg(self):
+        resp = self._send(SimpleUploadedFile('foto.png', _png_bytes(), content_type='image/png'))
+        self.assertEqual(resp.status_code, 200)
+        msg = self.conv.messages.last()
+        self.assertEqual(msg.message_type, 'image')
+        self.assertEqual(msg.attachment_type, 'image/jpeg')
+        self.assertTrue(msg.attachment_name.endswith('.jpg'))
+        self.assertTrue(Attachment.objects.filter(message=msg).exists())
+
+    def test_fake_image_rejected(self):
+        resp = self._send(SimpleUploadedFile('palsu.png', b'bukan gambar', content_type='image/png'))
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(self.conv.messages.count(), 2)
+
+    def test_upload_document(self):
+        resp = self._send(SimpleUploadedFile('surat.pdf', b'%PDF-1.4 tes', content_type='application/pdf'))
+        self.assertEqual(resp.status_code, 200)
+        msg = self.conv.messages.last()
+        self.assertEqual(msg.message_type, 'file')
+        self.assertEqual(msg.attachment_name, 'surat.pdf')
+        self.assertEqual(msg.attachment_size, len(b'%PDF-1.4 tes'))
+
+    def test_unsupported_type_rejected(self):
+        resp = self._send(SimpleUploadedFile('virus.exe', b'MZ', content_type='application/octet-stream'))
+        self.assertEqual(resp.status_code, 400)
+
+    def test_too_large_rejected(self):
+        with mock.patch('chat.views.MAX_UPLOAD', 10):
+            resp = self._send(SimpleUploadedFile('surat.pdf', b'x' * 50, content_type='application/pdf'))
+        self.assertEqual(resp.status_code, 400)
+
+    def test_no_file_rejected(self):
+        self.login(self.burhania)
+        resp = self.client.post(reverse('chat:send_attachment', args=[self.conv.id]))
+        self.assertEqual(resp.status_code, 400)
+
+    def test_non_participant_cannot_upload(self):
+        resp = self._send(SimpleUploadedFile('surat.pdf', b'%PDF', content_type='application/pdf'),
+                          user=self.faizy)
+        self.assertEqual(resp.status_code, 404)
+
+    def test_serve_image_inline_and_document_as_download(self):
+        self._send(SimpleUploadedFile('foto.png', _png_bytes(), content_type='image/png'))
+        img = self.conv.messages.last()
+        self._send(SimpleUploadedFile('surat.pdf', b'%PDF-1.4 tes', content_type='application/pdf'))
+        doc = self.conv.messages.last()
+
+        r = self.client.get(reverse('chat:attachment', args=[img.id]))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r['Content-Type'], 'image/jpeg')
+        self.assertTrue(r['Content-Disposition'].startswith('inline'))
+        self.assertEqual(r['X-Content-Type-Options'], 'nosniff')
+
+        r = self.client.get(reverse('chat:attachment', args=[doc.id]))
+        self.assertEqual(r['Content-Type'], 'application/pdf')
+        self.assertTrue(r['Content-Disposition'].startswith('attachment'))
+
+    def test_non_participant_cannot_download(self):
+        self._send(SimpleUploadedFile('surat.pdf', b'%PDF', content_type='application/pdf'))
+        doc = self.conv.messages.last()
+        self.client.logout()
+        self.login(self.faizy)
+        r = self.client.get(reverse('chat:attachment', args=[doc.id]))
+        self.assertEqual(r.status_code, 404)
+
+    def test_deleting_message_removes_attachment(self):
+        self._send(SimpleUploadedFile('surat.pdf', b'%PDF', content_type='application/pdf'))
+        doc = self.conv.messages.last()
+        self.client.post(reverse('chat:delete', args=[doc.id]))
+        self.assertFalse(Attachment.objects.filter(message_id=doc.id).exists())
+
+    def test_list_preview_for_attachments(self):
+        self._send(SimpleUploadedFile('surat.pdf', b'%PDF', content_type='application/pdf'))
+        resp = self.client.get(reverse('chat:index'))
+        self.assertEqual(resp.context['conversations'][0]['preview'], 'Dokumen: surat.pdf')
