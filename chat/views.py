@@ -71,6 +71,8 @@ def chat_index(request, conversation_id=None):
         'other_user': active.other_user(user) if active else None,
         'chat_messages': chat_messages,
         'new_users': new_users,
+        'max_image_bytes': MAX_UPLOAD,
+        'max_doc_bytes': MAX_UPLOAD,        
     })
 
 def _get_conversation(user, conversation_id):
@@ -185,7 +187,7 @@ def send_location(request, conversation_id):
     conv.save(update_fields=['updated_at'])
     return _render_messages(request, conv)
 
-MAX_UPLOAD = 5 * 1024 * 1024
+MAX_UPLOAD = 10 * 1024 * 1024
 IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
 DOC_EXTS = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt'}
 
@@ -195,12 +197,13 @@ def _normalize_image(data):
     img = Image.open(io.BytesIO(data))
     if img.format not in {'JPEG', 'PNG', 'WEBP', 'GIF'}:
         raise ValueError('format tidak didukung')
+    if img.format == 'JPEG':
+        img.draft('RGB', (2560, 2560))    
     img = ImageOps.exif_transpose(img).convert('RGB')
     img.thumbnail((1280, 1280))
     out = io.BytesIO()
     img.save(out, 'JPEG', quality=85)
     return out.getvalue()
-
 
 @login_required
 @require_POST
@@ -209,27 +212,31 @@ def send_attachment(request, conversation_id):
     upload = request.FILES.get('file')
     if upload is None:
         return HttpResponseBadRequest('Pilih file dulu')
-    if upload.size > MAX_UPLOAD:
-        return HttpResponseBadRequest('Ukuran file maksimal 5 MB')
     try:
         name = get_valid_filename(os.path.basename(upload.name))[:255]
     except SuspiciousFileOperation:
         return HttpResponseBadRequest('Nama file tidak valid')
 
     ext = os.path.splitext(name)[1].lower()
-    data = upload.read()
     if ext in IMAGE_EXTS:
+        kind, limit = Message.MessageType.IMAGE, MAX_UPLOAD
+    elif ext in DOC_EXTS:
+        kind, limit = Message.MessageType.FILE, MAX_UPLOAD
+    else:
+        return HttpResponseBadRequest('Tipe file tidak didukung')
+    if upload.size > limit:
+        return HttpResponseBadRequest(f'Ukuran file maksimal {limit // (1024 * 1024)} MB')
+
+    data = upload.read()
+    if kind == Message.MessageType.IMAGE:
         try:
             data = _normalize_image(data)
         except Exception:
             return HttpResponseBadRequest('File gambar tidak valid')
-        kind, ctype = Message.MessageType.IMAGE, 'image/jpeg'
+        ctype = 'image/jpeg'
         name = os.path.splitext(name)[0] + '.jpg'
-    elif ext in DOC_EXTS:
-        kind = Message.MessageType.FILE
-        ctype = mimetypes.guess_type(name)[0] or 'application/octet-stream'
     else:
-        return HttpResponseBadRequest('Tipe file tidak didukung')
+        ctype = mimetypes.guess_type(name)[0] or 'application/octet-stream'
 
     with transaction.atomic():
         msg = Message.objects.create(
@@ -239,7 +246,6 @@ def send_attachment(request, conversation_id):
         Attachment.objects.create(message=msg, data=data)
     conv.save(update_fields=['updated_at'])
     return _render_messages(request, conv)
-
 
 @login_required
 def attachment(request, message_id):
