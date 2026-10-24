@@ -1,0 +1,42 @@
+{% for m in chat_messages %}
+  <div class="msg group flex {% if m.sender_id == request.user.id %}justify-end{% endif %}">
+    <div class="max-w-md">
+      {% if m.message_type == 'location' %}
+        <div class="overflow-hidden rounded-xl border bg-white">
+          <div class="h-20 bg-[#DCE3D8]"></div>
+          <div class="p-3">
+            <p class="text-xs uppercase text-gray-500">Lokasi pertemuan</p>
+            <p class="font-semibold">{{ m.place_name }}</p>
+            <p class="text-sm text-gray-600">{{ m.address }}</p>
+            <a href="https://www.openstreetmap.org/?mlat={{ m.latitude }}&mlon={{ m.longitude }}#map=17/{{ m.latitude }}/{{ m.longitude }}"
+               target="_blank" rel="noopener"
+               class="mt-2 inline-block rounded-lg border border-[#344536] px-3 py-1 text-sm">Buka di Peta</a>
+          </div>
+        </div>
+      {% else %}
+        <div class="rounded-2xl px-4 py-2 {% if m.sender_id == request.user.id %}bg-[#344536] text-white{% else %}bg-[#D9C7AF]{% endif %}">
+          {{ m.content }}
+        </div>
+      {% endif %}
+
+      <div class="mt-1 flex items-center gap-2 text-xs text-gray-500 {% if m.sender_id == request.user.id %}justify-end{% endif %}">
+        {% if m.sender_id == request.user.id %}
+          <span class="flex gap-2 opacity-0 transition group-hover:opacity-100">
+            {% if m.message_type == 'text' %}
+            <button hx-get="{% url 'chat:edit' m.id %}"
+                    hx-target="closest .msg" hx-swap="outerHTML"
+                    class="underline">Edit</button>
+            {% endif %}
+            <button hx-post="{% url 'chat:delete' m.id %}"
+                    hx-target="#messages" hx-swap="innerHTML"
+                    hx-confirm="Hapus pesan ini?"
+                    class="underline text-red-700">Hapus</button>
+          </span>
+        {% endif %}
+        <span>{{ m.created_at|time:"H:i" }}{% if m.is_edited %} · (diedit){% endif %}</span>
+      </div>
+    </div>
+  </div>
+{% empty %}
+  <p class="text-center text-gray-500">Mulai percakapan dengan menyapa</p>
+{% endfor %}
