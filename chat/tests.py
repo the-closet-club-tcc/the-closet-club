@@ -1,9 +1,13 @@
+import json
+from unittest import mock
+from decimal import Decimal
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.shortcuts import resolve_url
 from django.urls import reverse
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from .models import Conversation, Message
+from . import osm
 
 User = get_user_model()
 
@@ -286,3 +290,110 @@ class StartConversationTests(ChatTestBase):
         self.login(self.burhania)
         resp = self.client.get(reverse('chat:index'), {'new': '1', 'q': 'amel'})
         self.assertEqual([u.username for u in resp.context['new_users']], ['amelia'])
+
+class LocationTests(ChatTestBase):
+    def test_place_search_uses_osm(self):
+        fake = [{'name': 'Stasiun Depok Baru', 'address': 'Jl. Margonda Raya, Depok',
+                 'lat': -6.391, 'lon': 106.818}]
+        self.login(self.burhania)
+        with mock.patch('chat.views.search_places', return_value=fake) as m:
+            resp = self.client.get(
+                reverse('chat:places', args=[self.conv.id]),
+                {'q': 'depok', 'category': 'stasiun'},
+            )
+        m.assert_called_once_with('depok', 'stasiun')
+        self.assertContains(resp, 'Stasiun Depok Baru')
+
+    def test_place_search_without_query_skips_osm(self):
+        self.login(self.burhania)
+        with mock.patch('chat.views.search_places') as m:
+            resp = self.client.get(reverse('chat:places', args=[self.conv.id]))
+        m.assert_not_called()
+        self.assertEqual(resp.status_code, 200)
+
+    def test_place_search_no_results_message(self):
+        self.login(self.burhania)
+        with mock.patch('chat.views.search_places', return_value=[]):
+            resp = self.client.get(reverse('chat:places', args=[self.conv.id]), {'q': 'zzz'})
+        self.assertContains(resp, 'Tempat tidak ditemukan')
+
+    def test_place_search_non_participant_404(self):
+        self.login(self.faizy)
+        resp = self.client.get(reverse('chat:places', args=[self.conv.id]), {'q': 'depok'})
+        self.assertEqual(resp.status_code, 404)
+
+    def test_send_location_creates_message(self):
+        self.login(self.burhania)
+        resp = self.client.post(reverse('chat:send_location', args=[self.conv.id]), {
+            'name': 'Stasiun Depok Baru', 'address': 'Jl. Margonda Raya, Depok',
+            'lat': '-6.391000', 'lon': '106.818000',
+        })
+        self.assertEqual(resp.status_code, 200)
+        msg = self.conv.messages.last()
+        self.assertEqual(msg.message_type, 'location')
+        self.assertEqual(msg.place_name, 'Stasiun Depok Baru')
+        self.assertEqual(msg.latitude, Decimal('-6.391000'))
+        self.assertEqual(msg.sender, self.burhania)
+
+    def test_send_location_rejects_invalid_coordinates(self):
+        self.login(self.burhania)
+        for lat, lon in [('abc', '106.8'), ('999', '106.8'), ('-6.3', '999'), ('nan', '1')]:
+            resp = self.client.post(reverse('chat:send_location', args=[self.conv.id]),
+                                    {'name': 'X', 'lat': lat, 'lon': lon})
+            self.assertEqual(resp.status_code, 400, (lat, lon))
+        self.assertEqual(self.conv.messages.count(), 2)
+
+    def test_send_location_requires_name(self):
+        self.login(self.burhania)
+        resp = self.client.post(reverse('chat:send_location', args=[self.conv.id]),
+                                {'name': ' ', 'lat': '-6.3', 'lon': '106.8'})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_send_location_requires_post(self):
+        self.login(self.burhania)
+        resp = self.client.get(reverse('chat:send_location', args=[self.conv.id]))
+        self.assertEqual(resp.status_code, 405)
+
+    def test_send_location_non_participant_404(self):
+        self.login(self.faizy)
+        resp = self.client.post(reverse('chat:send_location', args=[self.conv.id]),
+                                {'name': 'X', 'lat': '-6.3', 'lon': '106.8'})
+        self.assertEqual(resp.status_code, 404)
+
+
+def _fake_response(payload):
+    resp = mock.MagicMock()
+    resp.read.return_value = json.dumps(payload).encode('utf-8')
+    resp.__enter__.return_value = resp
+    return resp
+
+
+class OsmTests(SimpleTestCase):
+    def test_parses_results_and_sets_user_agent(self):
+        payload = [{'name': 'Stasiun Depok Baru', 'display_name': 'Stasiun Depok Baru, Depok',
+                    'lat': '-6.3910001', 'lon': '106.8180002'}]
+        with mock.patch('chat.osm.urllib.request.urlopen',
+                        return_value=_fake_response(payload)) as m:
+            results = osm.search_places('depok', 'stasiun')
+        self.assertEqual(results, [{
+            'name': 'Stasiun Depok Baru', 'address': 'Stasiun Depok Baru, Depok',
+            'lat': -6.391, 'lon': 106.818,
+        }])
+        req = m.call_args[0][0]
+        self.assertIn('q=stasiun+depok', req.full_url)
+        self.assertIn('TheClosetClub', req.get_header('User-agent'))
+
+    def test_network_error_returns_empty_list(self):
+        with mock.patch('chat.osm.urllib.request.urlopen', side_effect=OSError):
+            self.assertEqual(osm.search_places('depok'), [])
+
+    def test_empty_query_makes_no_request(self):
+        with mock.patch('chat.osm.urllib.request.urlopen') as m:
+            self.assertEqual(osm.search_places('   '), [])
+        m.assert_not_called()
+
+    def test_skips_items_with_bad_coordinates(self):
+        payload = [{'name': 'A', 'lat': 'x', 'lon': '1'}, {'name': 'B'}]
+        with mock.patch('chat.osm.urllib.request.urlopen',
+                        return_value=_fake_response(payload)):
+            self.assertEqual(osm.search_places('depok'), [])
