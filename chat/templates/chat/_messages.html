@@ -1,3 +1,4 @@
+{% load l10n %}
 {% for m in chat_messages %}
   <div class="msg group flex {% if m.sender_id == request.user.id %}justify-end{% endif %}">
     <div class="max-w-md">
@@ -8,7 +9,7 @@
             <p class="text-xs uppercase text-gray-500">Lokasi pertemuan</p>
             <p class="font-semibold">{{ m.place_name }}</p>
             <p class="text-sm text-gray-600">{{ m.address }}</p>
-            <a href="https://www.openstreetmap.org/?mlat={{ m.latitude }}&mlon={{ m.longitude }}#map=17/{{ m.latitude }}/{{ m.longitude }}"
+            <a href="https://www.openstreetmap.org/?mlat={{ m.latitude|unlocalize }}&mlon={{ m.longitude|unlocalize }}#map=17/{{ m.latitude|unlocalize }}/{{ m.longitude|unlocalize }}"
                target="_blank" rel="noopener"
                class="mt-2 inline-block rounded-lg border border-[#344536] px-3 py-1 text-sm">Buka di Peta</a>
           </div>
