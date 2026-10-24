@@ -1,3 +1,6 @@
+import io
+import mimetypes
+import os
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, render
@@ -5,9 +8,15 @@ from django.views.decorators.http import require_http_methods, require_POST
 from django.contrib.auth import get_user_model
 from django.shortcuts import redirect
 from decimal import Decimal, InvalidOperation
-from django.http import HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest
+from django.core.exceptions import SuspiciousFileOperation
+from django.db import transaction
+from django.utils.http import content_disposition_header
+from django.utils.text import get_valid_filename
+from PIL import Image, ImageOps
+
 from .osm import search_places
-from .models import Conversation, Message
+from .models import Attachment, Conversation, Message
 
 
 @login_required
@@ -34,6 +43,10 @@ def chat_index(request, conversation_id=None):
             preview = 'Belum ada pesan'
         elif last.message_type == 'location':
             preview = f'Lokasi: {last.place_name}'
+        elif last.message_type == 'image':
+            preview = 'Foto'
+        elif last.message_type == 'file':
+            preview = f'Dokumen: {last.attachment_name}'
         else:
             preview = last.content
         items.append({
@@ -171,3 +184,70 @@ def send_location(request, conversation_id):
     )
     conv.save(update_fields=['updated_at'])
     return _render_messages(request, conv)
+
+MAX_UPLOAD = 5 * 1024 * 1024
+IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
+DOC_EXTS = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt'}
+
+def _normalize_image(data):
+    """Validasi gambar, perkecil, simpan sebagai JPEG (EXIF ikut terhapus)."""
+    Image.open(io.BytesIO(data)).verify()
+    img = Image.open(io.BytesIO(data))
+    if img.format not in {'JPEG', 'PNG', 'WEBP', 'GIF'}:
+        raise ValueError('format tidak didukung')
+    img = ImageOps.exif_transpose(img).convert('RGB')
+    img.thumbnail((1280, 1280))
+    out = io.BytesIO()
+    img.save(out, 'JPEG', quality=85)
+    return out.getvalue()
+
+
+@login_required
+@require_POST
+def send_attachment(request, conversation_id):
+    conv = _get_conversation(request.user, conversation_id)
+    upload = request.FILES.get('file')
+    if upload is None:
+        return HttpResponseBadRequest('Pilih file dulu')
+    if upload.size > MAX_UPLOAD:
+        return HttpResponseBadRequest('Ukuran file maksimal 5 MB')
+    try:
+        name = get_valid_filename(os.path.basename(upload.name))[:255]
+    except SuspiciousFileOperation:
+        return HttpResponseBadRequest('Nama file tidak valid')
+
+    ext = os.path.splitext(name)[1].lower()
+    data = upload.read()
+    if ext in IMAGE_EXTS:
+        try:
+            data = _normalize_image(data)
+        except Exception:
+            return HttpResponseBadRequest('File gambar tidak valid')
+        kind, ctype = Message.MessageType.IMAGE, 'image/jpeg'
+        name = os.path.splitext(name)[0] + '.jpg'
+    elif ext in DOC_EXTS:
+        kind = Message.MessageType.FILE
+        ctype = mimetypes.guess_type(name)[0] or 'application/octet-stream'
+    else:
+        return HttpResponseBadRequest('Tipe file tidak didukung')
+
+    with transaction.atomic():
+        msg = Message.objects.create(
+            conversation=conv, sender=request.user, message_type=kind,
+            attachment_name=name, attachment_type=ctype, attachment_size=len(data),
+        )
+        Attachment.objects.create(message=msg, data=data)
+    conv.save(update_fields=['updated_at'])
+    return _render_messages(request, conv)
+
+
+@login_required
+def attachment(request, message_id):
+    att = get_object_or_404(Attachment.objects.select_related('message'), message_id=message_id)
+    msg = att.message
+    _get_conversation(request.user, msg.conversation_id)  # non-peserta -> 404
+    response = HttpResponse(bytes(att.data), content_type=msg.attachment_type)
+    inline = msg.message_type == Message.MessageType.IMAGE
+    response['Content-Disposition'] = content_disposition_header(not inline, msg.attachment_name)
+    response['X-Content-Type-Options'] = 'nosniff'
+    return response
