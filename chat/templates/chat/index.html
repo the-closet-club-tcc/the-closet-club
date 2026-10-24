@@ -67,17 +67,21 @@
         <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-[#344536]">Kirim Lokasi</summary>
         <div class="space-y-3 px-4 pb-4">
           <form hx-get="{% url 'chat:places' active.id %}" hx-target="#place-results"
-                hx-swap="innerHTML" class="flex gap-2">
-            <select name="category" class="rounded-xl border border-gray-200 px-3 py-2">
-              <option value="stasiun">Stasiun</option>
-              <option value="minimarket">Minimarket</option>
-              <option value="halte">Halte</option>
-              <option value="">Semua</option>
-            </select>
-            <input name="q" placeholder="Cari area, mis. Depok" required
-                  class="flex-1 rounded-xl border border-gray-200 px-3 py-2">
-            <button class="rounded-xl border border-[#344536] px-4 py-2">Cari</button>
+                hx-swap="innerHTML" hx-indicator="#place-loading" class="space-y-2">
+            <div class="flex gap-2">
+              <input name="q" required placeholder="Ketik nama tempat, mis. Fasilkom UI atau Stasiun Depok Baru"
+                    class="flex-1 rounded-xl border border-gray-200 px-3 py-2">
+              <button class="rounded-xl bg-[#344536] px-4 py-2 text-white">Cari</button>
+            </div>
+            <div class="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+              <span>Persempit:</span>
+              <label><input type="radio" name="category" value="" checked> Semua tempat</label>
+              <label><input type="radio" name="category" value="stasiun"> Stasiun</label>
+              <label><input type="radio" name="category" value="minimarket"> Minimarket</label>
+              <label><input type="radio" name="category" value="halte"> Halte</label>
+            </div>
           </form>
+          <p id="place-loading" class="htmx-indicator text-sm text-gray-500">Mencari...</p>
           <div id="place-results" class="max-h-48 space-y-2 overflow-y-auto"></div>
         </div>
       </details>      
