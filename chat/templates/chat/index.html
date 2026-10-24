@@ -63,6 +63,25 @@
         {% include 'chat/_messages.html' %}
       </div>
 
+      <details class="border-t bg-white">
+        <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-[#344536]">Kirim Lokasi</summary>
+        <div class="space-y-3 px-4 pb-4">
+          <form hx-get="{% url 'chat:places' active.id %}" hx-target="#place-results"
+                hx-swap="innerHTML" class="flex gap-2">
+            <select name="category" class="rounded-xl border border-gray-200 px-3 py-2">
+              <option value="stasiun">Stasiun</option>
+              <option value="minimarket">Minimarket</option>
+              <option value="halte">Halte</option>
+              <option value="">Semua</option>
+            </select>
+            <input name="q" placeholder="Cari area, mis. Depok" required
+                  class="flex-1 rounded-xl border border-gray-200 px-3 py-2">
+            <button class="rounded-xl border border-[#344536] px-4 py-2">Cari</button>
+          </form>
+          <div id="place-results" class="max-h-48 space-y-2 overflow-y-auto"></div>
+        </div>
+      </details>      
+
       <form id="message-form" class="flex gap-2 border-t bg-white p-4"
             hx-post="{% url 'chat:send' active.id %}"
             hx-target="#messages" hx-swap="innerHTML">
