@@ -4,6 +4,9 @@ from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_http_methods, require_POST
 from django.contrib.auth import get_user_model
 from django.shortcuts import redirect
+from decimal import Decimal, InvalidOperation
+from django.http import HttpResponseBadRequest
+from .osm import search_places
 from .models import Conversation, Message
 
 
@@ -134,3 +137,37 @@ def start_conversation(request, user_id):
         conv.item_name = request.POST.get('item_name', '')[:150]
         conv.save()
     return redirect('chat:room', conversation_id=conv.id)
+
+@login_required
+def place_search(request, conversation_id):
+    conv = _get_conversation(request.user, conversation_id)
+    q = request.GET.get('q', '').strip()[:100]
+    category = request.GET.get('category', '')
+    results = search_places(q, category) if q else []
+    return render(request, 'chat/_place_results.html', {
+        'results': results, 'conversation': conv, 'searched': bool(q),
+    })
+
+
+@login_required
+@require_POST
+def send_location(request, conversation_id):
+    conv = _get_conversation(request.user, conversation_id)
+    try:
+        lat = Decimal(request.POST.get('lat', '')).quantize(Decimal('0.000001'))
+        lon = Decimal(request.POST.get('lon', '')).quantize(Decimal('0.000001'))
+    except (InvalidOperation, ValueError):
+        return HttpResponseBadRequest('Koordinat tidak valid')
+    if not (lat.is_finite() and lon.is_finite()
+            and -90 <= lat <= 90 and -180 <= lon <= 180):
+        return HttpResponseBadRequest('Koordinat tidak valid')
+    name = request.POST.get('name', '').strip()[:150]
+    if not name:
+        return HttpResponseBadRequest('Nama tempat wajib diisi')
+    Message.objects.create(
+        conversation=conv, sender=request.user, message_type='location',
+        place_name=name, address=request.POST.get('address', '').strip()[:255],
+        latitude=lat, longitude=lon,
+    )
+    conv.save(update_fields=['updated_at'])
+    return _render_messages(request, conv)
