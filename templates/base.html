@@ -33,8 +33,23 @@
             <a href="#">My Closet</a>
             <a href="#">Community</a>
             <a href="#">Contact</a>
-            <a href="{% url 'login' %}" class="nav-login">Sign in</a>
-            <a href="{% url 'register' %}" class="nav-register">Register</a>
+
+            {% if user.is_authenticated %}
+                <span class="nav-user">
+                    {{user.username }}
+                </span>
+
+                <!-- menggunakan form karena diviews.py kita menggunakan @require_POST -->
+                <form method="POST" action="{% url 'logout' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="nav-register">
+                        Logout
+                    </button>
+                </form>
+            {% else %}
+                <a href="{% url 'login' %}" class="nav-login">Sign in</a>
+                <a href="{% url 'register' %}" class="nav-register">Register</a>
+            {% endif %}
         </nav>
 
     </header>
