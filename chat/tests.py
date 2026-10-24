@@ -2,6 +2,7 @@ import io
 import json
 from unittest import mock
 from decimal import Decimal
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.shortcuts import resolve_url
@@ -486,9 +487,15 @@ class AttachmentTests(ChatTestBase):
         resp = self._send(SimpleUploadedFile('virus.exe', b'MZ', content_type='application/octet-stream'))
         self.assertEqual(resp.status_code, 400)
 
-    def test_too_large_rejected(self):
+    def test_document_too_large_rejected(self):
         with mock.patch('chat.views.MAX_UPLOAD', 10):
             resp = self._send(SimpleUploadedFile('surat.pdf', b'x' * 50, content_type='application/pdf'))
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(self.conv.messages.count(), 2)
+
+    def test_image_too_large_rejected(self):
+        with mock.patch('chat.views.MAX_UPLOAD', 10):
+            resp = self._send(SimpleUploadedFile('foto.png', _png_bytes(), content_type='image/png'))
         self.assertEqual(resp.status_code, 400)
 
     def test_no_file_rejected(self):
