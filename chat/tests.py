@@ -428,3 +428,18 @@ class OsmTests(SimpleTestCase):
         with mock.patch('chat.osm.urllib.request.urlopen',
                         return_value=_fake_response(payload)):
             self.assertEqual(osm.search_places('depok'), [])
+
+    def test_prefixes_category_and_shortens_address(self):
+        payload = [{
+            'name': 'Depok',
+            'display_name': 'Depok, Jalan Stasiun Depok Lama, Pancoran Mas, Depok, Jawa Barat, 16436, Indonesia',
+            'lat': '-6.40', 'lon': '106.81',
+        }]
+        with mock.patch('chat.osm.urllib.request.urlopen',
+                        return_value=_fake_response(payload)):
+            results = osm.search_places('depok', 'stasiun')
+        self.assertEqual(results[0]['name'], 'Stasiun Depok')
+        self.assertEqual(
+            results[0]['address'],
+            'Depok, Jalan Stasiun Depok Lama, Pancoran Mas, Depok, Jawa Barat',
+        )            
