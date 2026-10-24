@@ -16,6 +16,11 @@ CATEGORIES = {
     'halte': 'halte',
 }
 
+def _short_address(display):
+    parts = [p.strip() for p in display.split(',') if p.strip()]
+    while parts and (parts[-1] == 'Indonesia' or parts[-1].isdigit()):
+        parts.pop()
+    return ', '.join(parts)[:255]
 
 def search_places(query, category='', limit=5):
     """Cari tempat lewat OpenStreetMap Nominatim. Gagal jaringan = list kosong."""
@@ -52,8 +57,11 @@ def search_places(query, category='', limit=5):
             continue
         display = item.get('display_name', '')
         name = item.get('name') or display.split(',')[0]
+        if category in CATEGORIES and CATEGORIES[category].lower() not in name.lower():
+            name = f'{CATEGORIES[category].title()} {name}'
         results.append({
-            'name': name[:150], 'address': display[:255], 'lat': lat, 'lon': lon,
+            'name': name[:150], 'address': _short_address(display),
+            'lat': lat, 'lon': lon,
         })
     cache.set(key, results, CACHE_SECONDS)
     return results
