@@ -7,12 +7,19 @@
 <style type="text/tailwindcss">
   @import "tailwindcss/theme.css" layer(theme);
   @import "tailwindcss/utilities.css" layer(utilities);
+  @theme {
+    --font-sans: 'Work Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-serif: 'Gloock', ui-serif, Georgia, serif;
+  }
+</style>
+<style>
+  .chat-root input, .chat-root select, .chat-root button, .chat-root textarea { font: inherit; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
 {% endblock %}
 
 {% block content %}
-<div class="mx-auto my-6 flex h-[calc(100dvh-10rem)] min-h-[560px] max-w-6xl overflow-hidden rounded-2xl bg-white shadow"
+<div class="mx-auto my-6 flex h-[calc(100dvh-10rem)] min-h-[560px] max-w-6xl overflow-hidden rounded-2xl bg-white shadow chat-root font-sans"
      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 
   <!-- Kiri: daftar percakapan -->
