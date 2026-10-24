@@ -542,3 +542,31 @@ class AttachmentTests(ChatTestBase):
         self._send(SimpleUploadedFile('surat.pdf', b'%PDF', content_type='application/pdf'))
         resp = self.client.get(reverse('chat:index'))
         self.assertEqual(resp.context['conversations'][0]['preview'], 'Dokumen: surat.pdf')
+
+    def test_list_preview_for_image_attachment(self):
+        self._send(SimpleUploadedFile('foto.png', _png_bytes(), content_type='image/png'))
+        resp = self.client.get(reverse('chat:index'))
+        self.assertEqual(resp.context['conversations'][0]['preview'], 'Foto')
+
+    def test_unsupported_image_format_rejected(self):
+        buf = io.BytesIO()
+        Image.new('RGB', (10, 10)).save(buf, 'BMP')
+        resp = self._send(SimpleUploadedFile('foto.png', buf.getvalue(), content_type='image/png'))
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(self.conv.messages.count(), 2)
+
+    def test_invalid_filename_rejected(self):
+        resp = self._send(SimpleUploadedFile('###', b'data'))
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(self.conv.messages.count(), 2)
+
+    def test_upload_jpeg_is_resized(self):
+        buf = io.BytesIO()
+        Image.new('RGB', (3000, 2000), 'blue').save(buf, 'JPEG')
+        resp = self._send(SimpleUploadedFile('foto.jpg', buf.getvalue(), content_type='image/jpeg'))
+        self.assertEqual(resp.status_code, 200)
+        msg = self.conv.messages.last()
+        self.assertEqual(msg.message_type, 'image')
+        self.assertEqual(msg.attachment_type, 'image/jpeg')
+        saved = Image.open(io.BytesIO(bytes(msg.attachment.data)))
+        self.assertLessEqual(max(saved.size), 1280)                
