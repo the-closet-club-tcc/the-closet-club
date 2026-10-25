@@ -1,5 +1,76 @@
 {% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Swap | The Closet Club{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/swap.css' %}">
+{% endblock %}
 
 {% block content %}
+<section class="swap-page">
+
+    <div class="swap-container">
+
+        <header class="swap-header">
+            <h1>Swap!</h1>
+            <p>Discover pre-loved clothes and find your next swap.</p>
+        </header>
+
+        <div class="swap-deck" id="swap-deck">
+
+            {% for item in items %}
+            <article class="swap-card" data-name="{{ item.name }}" data-description="{{ item.description }}"
+                data-size="{{ item.size }}" data-condition="{{ item.condition }}" data-owner="{{ item.owner }}">
+
+                <div class="swap-image">
+                    <img src="{% static item.image %}" alt="{{ item.name }}" draggable="false">
+                </div>
+
+                <div class="swap-card-content">
+                    <h2>{{ item.name }}</h2>
+                    <p>{{ item.description }}</p>
+
+                    <div class="swap-actions">
+                        <button type="button" class="swap-reject" aria-label="Skip item">
+                            ✕
+                        </button>
+
+                        <button type="button" class="swap-details">
+                            View Details
+                        </button>
+
+                        <button type="button" class="swap-accept" aria-label="Interested in item">
+                            ✓
+                        </button>
+                    </div>
+                </div>
+            </article>
+            {% endfor %}
+
+            <div class="swap-finished" id="swap-finished" hidden>
+                <h2>You're all caught up!</h2>
+                <p>No more items to discover right now.</p>
+            </div>
+
+        </div>
+
+        <p class="swap-feedback" id="swap-feedback" role="status" aria-live="polite"></p>
+
+    </div>
+</section>
+
+<dialog class="swap-modal" id="swap-modal">
+    <h2 id="detail-name"></h2>
+    <p id="detail-description"></p>
+    <p id="detail-size"></p>
+    <p id="detail-condition"></p>
+    <p id="detail-owner"></p>
+    <button type="button" id="close-details">Close</button>
+</dialog>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/swap.js' %}"></script>
 
 {% endblock %}
