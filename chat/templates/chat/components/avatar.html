@@ -1,0 +1,7 @@
+<span class="relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#D9C7AF] text-sm font-semibold text-[#344536]"
+      style="width:{{ size|default:44 }}px;height:{{ size|default:44 }}px">
+  {{ person.username|slice:":1"|upper }}
+  {% if person.foto_profil %}
+    <img src="{{ person.foto_profil.url }}" alt="" class="absolute inset-0 h-full w-full object-cover" onerror="this.remove()">
+  {% endif %}
+</span>
