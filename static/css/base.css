@@ -1,16 +1,20 @@
-
-/* GLOBAL */
-
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
 }
 
+:root {
+    --tcc-ink: #1c291f;
+    --tcc-cream: #f6eee3;
+    --tcc-olive: #314b36;
+    --tcc-white: #fbfaf8;
+}
+
 body {
     font-family: 'Work Sans', sans-serif;
     color: #292923;
-    background-color: #F8F3E9;
+    background-color:var(--tcc-cream) ;
     min-height: 100vh;
 
     display: flex;
@@ -25,13 +29,10 @@ a {
     flex: 1;
 }
 
-.container {
-    max-width: 90%;
-    margin: 0 auto;
-    padding: 0 1.5rem;
-}
 
 /* NAVBAR */
+
+
 
 .navbar {
     width: 100%;
@@ -51,6 +52,7 @@ a {
     color: #344536;
 }
 
+
 .navbar-menu {
     display: flex;
     align-items: center;
@@ -61,11 +63,11 @@ a {
 .navbar-menu a {
     color: #292923;
     font-size: 13px;
-    transition: color 0.3s ease;
+    transition: transform 0.3s ease;
 }
 
 .navbar-menu a:hover {
-    color: #344536;
+    transform: scale(1.1);
 }
 
 .navbar-menu .nav-login {
@@ -79,6 +81,28 @@ a {
     background-color: #344536;
     color: #FFFFFF;
     border-radius: 6px;
+}
+
+/* USERNAME DI NAVBAR */
+.nav-user {
+    font-size: 13px;
+    color: #344536;
+    font-weight: 700;
+    font-family: 'Work Sans', sans-serif;
+
+}
+
+/*LOGOUT */
+.navbar-menu form {
+    margin: 0;
+}
+
+/* TOMBOL LOGOUT */
+.navbar-menu button.nav-register {
+    font-family: inherit;
+    font-size: 13px;
+    border: none;
+    cursor: pointer;
 }
 
 

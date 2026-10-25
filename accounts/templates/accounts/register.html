@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Create Account | The Closet Club{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/auth.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+    <div class="auth-container">
+
+        {% include 'accounts/auth_hero.html' %}
+
+        <section class="auth-card">
+            <div class="auth-card-content">
+
+                <p class="auth-eyebrow">
+                    JOIN A MORE SUSTAINABLE TOMORROW
+                </p>
+
+                <h1>Create Your Account</h1>
+
+                <p class="auth-subheading">
+                    Thrift, donate, and give fashion a brighter future.
+                </p>
+
+                {% for message in messages %}
+                    <p class="auth-message">{{ message }}</p>
+                {% endfor %}
+
+                {% for error in form.non_field_errors %}
+                    <p class="auth-error">{{ error }}</p>
+                {% endfor %}
+
+                <form method="POST"
+                    enctype="multipart/form-data"
+                    class="auth-form">
+                    {% csrf_token %}
+
+                    {% for field in form %}
+                        <div class="auth-field">
+
+                            <label for="{{ field.id_for_label }}">
+                                {{ field.label }}
+                            </label>
+
+                            <div class="auth-input">
+                                {{ field }}
+                            </div>
+
+                            {% if field.help_text %}
+                                <div class="auth-help">
+                                    {{ field.help_text }}
+                                </div>
+                            {% endif %}
+
+                            {% for error in field.errors %}
+                                <p class="auth-error">{{ error }}</p>
+                            {% endfor %}
+
+                        </div>
+                    {% endfor %}
+
+                    <button type="submit" class="auth-submit">
+                        Create Account &rarr;
+                    </button>
+                </form>
+
+                <p class="auth-switch">
+                    Already have an account?
+                    <a href="{% url 'login' %}">Sign in</a>
+                </p>
+
+            </div>
+        </section>
+
+    </div>
+</div>
+{% endblock %}

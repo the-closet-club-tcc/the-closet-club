@@ -1,11 +1,25 @@
-{% extends 'chat/chat_base.html' %}
+{% extends 'base.html' %}
+
+{% block title %}Pesan | The Closet Club{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<style type="text/tailwindcss">
+  @import "tailwindcss/theme.css" layer(theme);
+  @import "tailwindcss/utilities.css" layer(utilities);
+</style>
+<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
+{% endblock %}
 
 {% block content %}
-<div class="mx-auto flex h-[calc(100dvh-6rem)] min-h-[560px] max-w-6xl overflow-hidden rounded-2xl bg-white shadow">
+<div class="mx-auto my-6 flex h-[calc(100dvh-10rem)] min-h-[560px] max-w-6xl overflow-hidden rounded-2xl bg-white shadow"
+     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 
   <!-- Kiri: daftar percakapan -->
   <aside class="flex w-80 shrink-0 flex-col border-r">
     <h1 class="p-6 font-serif text-3xl">Pesan</h1>
+    <a href="{% url 'chat:index' %}?new=1"
+      class="mx-6 mb-3 rounded-lg bg-[#344536] px-4 py-2 text-center text-white">+ Pesan baru</a>
     <div class="min-h-0 flex-1 overflow-y-auto">
       {% for c in conversations %}
       <a href="{% url 'chat:room' c.conversation.id %}"
@@ -56,6 +70,29 @@
               class="flex-1 rounded-xl border px-4 py-3">
         <button class="rounded-xl bg-[#344536] px-5 py-3 text-white">Kirim</button>
       </form>
+
+      {% elif new_users is not None %}
+        <div class="flex min-h-0 flex-1 flex-col p-6">
+          <h2 class="font-serif text-2xl">Pesan baru</h2>
+          <form method="get" class="my-4 flex gap-2">
+            <input type="hidden" name="new" value="1">
+            <input name="q" value="{{ request.GET.q }}" placeholder="Cari username"
+                  class="flex-1 rounded-xl border border-gray-200 px-4 py-2">
+            <button class="rounded-xl border border-[#344536] px-4 py-2">Cari</button>
+          </form>
+          <div class="min-h-0 flex-1 space-y-2 overflow-y-auto">
+            {% for u in new_users %}
+            <form method="post" action="{% url 'chat:start' u.id %}"
+                  class="flex items-center justify-between rounded-xl bg-white p-3">
+              {% csrf_token %}
+              <span class="font-semibold">{{ u.username }}</span>
+              <button class="rounded-lg bg-[#344536] px-4 py-2 text-white">Chat</button>
+            </form>
+            {% empty %}
+            <p class="text-gray-500">Tidak ada user ditemukan</p>
+            {% endfor %}
+          </div>
+        </div>      
     {% else %}
       <div class="flex flex-1 items-center justify-center text-gray-500">
         Pilih percakapan di sebelah kiri
@@ -63,7 +100,9 @@
     {% endif %}
   </section>
 </div>
+{% endblock %}
 
+{% block extra_js %}
 <script>
   const box = document.getElementById('messages');
   const form = document.getElementById('message-form');
@@ -72,6 +111,7 @@
 
   if (box && form) {
     toBottom();
+    window.addEventListener('load', () => setTimeout(toBottom, 100));
     box.addEventListener('scroll', () => {
       stick = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
     });

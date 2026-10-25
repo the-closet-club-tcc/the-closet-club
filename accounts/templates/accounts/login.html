@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Sign In | The Closet Club{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/auth.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="auth-page container">
+    <div class="auth-container">
+
+        {% include 'accounts/auth_hero.html' %}
+
+        <section class="auth-card">
+            <div class="auth-card-content">
+
+                <p class="auth-eyebrow">
+                    WELCOME BACK TO THE CLOSET CLUB
+                </p>
+
+                <h1>Sign In</h1>
+
+                <p class="auth-subheading">
+                    Your next favorite find is waiting.
+                </p>
+
+                {% for message in messages %}
+                    <p class="auth-message">{{ message }}</p>
+                {% endfor %}
+
+                {% for error in form.non_field_errors %}
+                    <p class="auth-error">{{ error }}</p>
+                {% endfor %}
+
+                <form method="POST" class="auth-form">
+                    {% csrf_token %}
+
+                    {% for field in form %}
+                        <div class="auth-field">
+
+                            <label for="{{ field.id_for_label }}">
+                                {{ field.label }}
+                            </label>
+
+                            <div class="auth-input">
+                                {{ field }}
+                            </div>
+
+                            {% for error in field.errors %}
+                                <p class="auth-error">{{ error }}</p>
+                            {% endfor %}
+
+                        </div>
+                    {% endfor %}
+
+                    <button type="submit" class="auth-submit">
+                        Sign In &rarr;
+                    </button>
+                </form>
+
+                <p class="auth-switch">
+                    New to The Closet Club?
+                    <a href="{% url 'register' %}">Create an account</a>
+                </p>
+            </div>
+        </section>
+
+    </div>
+</div>
+{% endblock %}
