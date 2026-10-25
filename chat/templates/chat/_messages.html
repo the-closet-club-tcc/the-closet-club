@@ -42,9 +42,7 @@
                     hx-target="closest .msg" hx-swap="outerHTML"
                     class="underline">Edit</button>
             {% endif %}
-            <button hx-post="{% url 'chat:delete' m.id %}"
-                    hx-target="#messages" hx-swap="innerHTML"
-                    hx-confirm="Hapus pesan ini?"
+            <button type="button" data-confirm-url="{% url 'chat:delete' m.id %}"
                     class="underline text-red-700">Hapus</button>
           </span>
         {% endif %}
