@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ owner.username }}'s Closet | The Closet Club{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/closet.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="closet-page">
+    <div class="closet-container">
+
+        <header class="closet-header">
+            <div class="closet-owner">
+                {% if owner.foto_profil %}
+                <img src="{{ owner.foto_profil.url }}" alt="" class="closet-avatar">
+                {% else %}
+                <span class="closet-avatar closet-avatar--empty">{{ owner.username|slice:":1"|upper }}</span>
+                {% endif %}
+                <div>
+                    <h1>{{ owner.username }}'s Closet</h1>
+                    <p>
+                        {% if owner.is_verified %}<span class="closet-verified">Verified</span> &middot; {% endif %}
+                        {% if rating %}&#9733; {{ rating }}{% else %}No reviews yet{% endif %}
+                        &middot; {{ page.paginator.count }} item{{ page.paginator.count|pluralize }} available
+                    </p>
+                </div>
+            </div>
+        </header>
+
+        {% url 'closet:user_closet' owner.username as action_url %}
+        {% include 'closet/_filters.html' with action_url=action_url %}
+
+        {% if page.object_list %}
+        <div class="closet-grid">
+            {% for item in page.object_list %}
+            {% include 'closet/_card.html' with item=item owner_mode=False %}
+            {% endfor %}
+        </div>
+        {% include 'closet/_pagination.html' %}
+        {% else %}
+        <div class="closet-empty">
+            <h2>{% if is_filtered %}No matching items{% else %}Nothing on offer right now{% endif %}</h2>
+            <p>{% if is_filtered %}Try a different search or reset the filters.{% else %}Check back later for new pieces.{% endif %}</p>
+        </div>
+        {% endif %}
+
+    </div>
+</section>
+{% endblock %}

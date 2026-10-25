@@ -5,6 +5,7 @@ venv/
 !.env.example
 
 # Django Database & Cache
+media/
 db.sqlite3
 __pycache__/
 *.pyc
