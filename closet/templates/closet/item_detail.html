@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ item.name }} | The Closet Club{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/closet.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="closet-page">
+    <div class="closet-container">
+
+        {% include 'closet/_messages.html' %}
+
+        <p class="closet-back">
+            {% if is_owner %}
+            <a href="{% url 'closet:my_closet' %}">&larr; Back to My Closet</a>
+            {% else %}
+            <a href="{% url 'closet:user_closet' owner.username %}">&larr; Back to {{ owner.username }}'s closet</a>
+            {% endif %}
+        </p>
+
+        <div class="closet-detail">
+            <div class="closet-detail-image">
+                <img src="{{ item.photo.url }}" alt="{{ item.name }}">
+            </div>
+
+            <div class="closet-detail-info">
+                <span class="closet-badge closet-badge--{{ item.status }} closet-badge--static">{{ item.get_status_display }}</span>
+                <h1>{{ item.name }}</h1>
+
+                <dl class="closet-facts">
+                    <div><dt>Size</dt><dd>{{ item.get_size_display }}</dd></div>
+                    <div><dt>Condition</dt><dd>{{ item.get_condition_display }}</dd></div>
+                    <div><dt>Added</dt><dd>{{ item.created_at|date:"j M Y" }}</dd></div>
+                </dl>
+
+                {% if item.description %}
+                <p class="closet-description">{{ item.description|linebreaksbr }}</p>
+                {% endif %}
+
+                <div class="closet-owner-box">
+                    {% if owner.foto_profil %}
+                    <img src="{{ owner.foto_profil.url }}" alt="" class="closet-avatar">
+                    {% else %}
+                    <span class="closet-avatar closet-avatar--empty">{{ owner.username|slice:":1"|upper }}</span>
+                    {% endif %}
+                    <div>
+                        <a href="{% if is_owner %}{% url 'closet:my_closet' %}{% else %}{% url 'closet:user_closet' owner.username %}{% endif %}"><strong>{{ owner.username }}</strong></a>
+                        <p>
+                            {% if owner.is_verified %}<span class="closet-verified">Verified</span> &middot; {% endif %}
+                            {% if rating %}&#9733; {{ rating }}{% else %}No reviews yet{% endif %}
+                        </p>
+                    </div>
+                </div>
+
+                <div class="closet-detail-actions">
+                    {% if is_owner %}
+                    <a href="{% url 'closet:item_edit' item.pk %}" class="closet-btn closet-btn--dark">Edit</a>
+                    <a href="{% url 'closet:item_delete' item.pk %}" class="closet-btn closet-btn--danger">Delete</a>
+                    {% elif item.is_offered %}
+                        {% if user.is_authenticated %}
+                        <form method="post" action="{% url 'chat:start' owner.pk %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="item_id" value="{{ item.pk }}">
+                            <input type="hidden" name="item_name" value="{{ item.name }}">
+                            <button type="submit" class="closet-btn closet-btn--dark">Chat with {{ owner.username }}</button>
+                        </form>
+                        {% else %}
+                        <a href="{% url 'login' %}" class="closet-btn closet-btn--dark">Sign in to chat with the owner</a>
+                        {% endif %}
+                        <a href="{% url 'closet:user_closet' owner.username %}" class="closet-btn closet-btn--ghost">See more from this closet</a>
+                    {% else %}
+                    <p class="closet-unavailable">This item is no longer available.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+    </div>
+</section>
+{% endblock %}

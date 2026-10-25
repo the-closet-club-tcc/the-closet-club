@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Delete {{ item.name }} | The Closet Club{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/closet.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="closet-page">
+    <div class="closet-container closet-container--narrow">
+        <div class="closet-confirm">
+            <img src="{{ item.photo.url }}" alt="{{ item.name }}">
+            <h1>Remove this item?</h1>
+            <p><strong>{{ item.name }}</strong> will be permanently removed from your closet. This cannot be undone.</p>
+            <form method="post" class="closet-form-actions">
+                {% csrf_token %}
+                <button type="submit" class="closet-btn closet-btn--danger-solid">Yes, delete</button>
+                <a href="{% url 'closet:my_closet' %}" class="closet-btn closet-btn--ghost">Cancel</a>
+            </form>
+        </div>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,19 @@
+{# Form pencarian/filter. Variabel: action_url, keep_status (opsional) #}
+<form method="get" class="closet-filters">
+    {% if keep_status and current_status %}<input type="hidden" name="status" value="{{ current_status }}">{% endif %}
+    <input type="search" name="q" value="{{ q }}" placeholder="Search name or description" class="closet-input closet-input--grow" aria-label="Search">
+    <select name="size" class="closet-input" aria-label="Size">
+        <option value="">All sizes</option>
+        {% for value, label in size_choices %}
+        <option value="{{ value }}" {% if sel_size == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+    <select name="condition" class="closet-input" aria-label="Condition">
+        <option value="">Any condition</option>
+        {% for value, label in condition_choices %}
+        <option value="{{ value }}" {% if sel_condition == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit" class="closet-btn closet-btn--dark">Filter</button>
+    {% if is_filtered %}<a href="{{ action_url }}" class="closet-btn closet-btn--ghost">Reset</a>{% endif %}
+</form>
