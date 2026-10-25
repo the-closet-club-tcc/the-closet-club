@@ -1,0 +1,39 @@
+/* Toast */
+#toast-box { position: fixed; right: 1.5rem; bottom: 1.5rem; z-index: 60; display: flex;
+  flex-direction: column; gap: .5rem; width: min(22rem, calc(100vw - 2rem)); pointer-events: none; }
+.toast { pointer-events: auto; padding: .75rem 1rem; border-radius: .75rem; color: #fff;
+  font-size: .9rem; box-shadow: 0 .5rem 1.5rem rgba(41,41,35,.25);
+  opacity: 0; transform: translateY(.5rem); transition: opacity .25s, transform .25s; }
+.toast--show { opacity: 1; transform: none; }
+.toast--success { background: #344536; }
+.toast--error { background: #b42318; }
+
+/* Modal: pola popover seperti Tutorial 03 */
+.chat-modal { display: none; position: fixed; inset: 0; width: 100%; height: 100%;
+  max-width: none; max-height: none; margin: 0; padding: 1rem; border: 0;
+  background: transparent; z-index: 50; align-items: center; justify-content: center; }
+.chat-modal:popover-open { display: flex; }
+.chat-modal__backdrop { position: absolute; inset: 0; width: 100%; height: 100%; border: 0;
+  padding: 0; background: rgba(41,41,35,.58); cursor: default; }
+.chat-modal__content { position: relative; z-index: 1; width: min(100%, 480px); padding: 1.5rem;
+  background: #F8F3E9; border: 1px solid #D9C7AF; border-radius: 1rem;
+  box-shadow: 0 1rem 3rem rgba(41,41,35,.22); }
+.chat-modal__content h2 { margin: 0 0 .75rem; font-family: 'Gloock', ui-serif, Georgia, serif; font-size: 1.5rem; }
+.chat-modal__close { position: absolute; top: 1rem; right: 1rem; border: 0; padding: 0;
+  background: transparent; color: #6b6b60; font-size: 1.8rem; line-height: 1; cursor: pointer; }
+.chat-modal__actions { display: flex; justify-content: flex-end; gap: .75rem; margin-top: 1.5rem; }
+
+/* Tombol */
+.btn { border-radius: .75rem; padding: .5rem 1rem; cursor: pointer; border: 1px solid transparent; font: inherit; }
+.btn-primary { background: #344536; color: #fff; }
+.btn-secondary { background: #fff; border-color: #D9C7AF; color: #292923; }
+.btn-danger { background: #b42318; color: #fff; }
+
+/* Tombol lampiran */
+.chat-root button { cursor: pointer; }
+.chat-root button:disabled { cursor: not-allowed; }
+.upload-btn { transition: transform .1s, background-color .15s, border-color .15s; }
+.upload-btn:hover { background: #F8F3E9; border-color: #344536; }
+.upload-btn:active { transform: scale(.95); background: #D9C7AF; }
+.upload-btn:focus-visible { outline: 2px solid #344536; outline-offset: 2px; }
+.upload-btn:disabled { opacity: .5; }
