@@ -37,3 +37,23 @@
 .upload-btn:active { transform: scale(.95); background: #D9C7AF; }
 .upload-btn:focus-visible { outline: 2px solid #344536; outline-offset: 2px; }
 .upload-btn:disabled { opacity: .5; }
+
+/* ---- Layout halaman chat ---- */
+.chat-root { height: calc(100dvh - 9rem); min-height: 520px; }
+@media (max-width: 767px) { .chat-root { height: calc(100dvh - 5rem); } }
+.chat-root [hidden] { display: none !important; }
+.chat-root input, .chat-root select, .chat-root button, .chat-root textarea { font-family: inherit; }
+.chat-root summary { list-style: none; cursor: pointer; }
+.chat-root summary::-webkit-details-marker { display: none; }
+
+.icon-btn, .send-btn { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center;
+  width: 2.5rem; height: 2.5rem; border-radius: 9999px; cursor: pointer;
+  transition: background-color .15s, transform .1s; }
+.icon-btn { border: 1px solid #E8E0D0; background: #fff; color: #344536; }
+.icon-btn:hover { background: #F8F3E9; }
+.send-btn { border: 0; background: #344536; color: #fff; }
+.send-btn:hover { background: #2a382c; }
+.icon-btn:active, .send-btn:active { transform: scale(.94); }
+.menu-item { display: flex; width: 100%; align-items: center; gap: .5rem; padding: .5rem .75rem;
+  border: 0; border-radius: .5rem; background: transparent; text-align: left; font-size: .9rem; }
+.menu-item:hover { background: #F8F3E9; }
