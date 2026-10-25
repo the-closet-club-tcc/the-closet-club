@@ -17,7 +17,6 @@ from . import osm
 
 User = get_user_model()
 
-@override_settings(ROOT_URLCONF='chat.test_urls', LOGIN_URL='/login/')
 class ChatTestBase(TestCase):
     def setUp(self):
         self.burhania = User.objects.create_user('burhania', password='pass12345')
