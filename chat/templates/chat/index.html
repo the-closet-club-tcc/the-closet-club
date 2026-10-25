@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-
+{% load static %}
 {% block title %}Pesan | The Closet Club{% endblock %}
 
 {% block extra_head %}
@@ -12,17 +12,8 @@
     --font-serif: 'Gloock', ui-serif, Georgia, serif;
   }
 </style>
-<style>
-  .chat-root input, .chat-root select, .chat-root button, .chat-root textarea { font: inherit; }
-  .chat-root button { cursor: pointer; }
-  .chat-root button:disabled { cursor: not-allowed; }
-  .upload-btn { transition: transform .1s, background-color .15s, border-color .15s; }
-  .upload-btn:hover { background: #F8F3E9; border-color: #344536; }
-  .upload-btn:active { transform: scale(.95); background: #D9C7AF; }
-  .upload-btn:focus-visible { outline: 2px solid #344536; outline-offset: 2px; }
-  .upload-btn:disabled { opacity: .5; }  
-</style>
 <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
+<link rel="stylesheet" href="{% static 'chat/css/chat.css' %}">
 {% endblock %}
 
 {% block content %}
@@ -166,101 +157,13 @@
       </div>
     {% endif %}
   </section>
+  {% if active %}{% include 'chat/components/confirm_modal.html' %}{% endif %}
 </div>
 <div id="toast-box" aria-live="polite"
      class="pointer-events-none fixed bottom-6 right-6 z-50 flex w-80 flex-col gap-2"></div>
 {% endblock %}
 
 {% block extra_js %}
-<script>
-  const box = document.getElementById('messages');
-  const form = document.getElementById('message-form');
-  let stick = true;
-  const toBottom = () => { box.scrollTop = box.scrollHeight; };
-
-  if (box && form) {
-    const toastBox = document.getElementById('toast-box');
-    const toast = (message, kind = 'error') => {
-      const el = document.createElement('div');
-      el.className = 'pointer-events-auto rounded-xl px-4 py-3 text-sm text-white shadow-lg transition-opacity duration-300 '
-        + (kind === 'error' ? 'bg-red-700' : 'bg-[#344536]');
-      el.textContent = message;
-      toastBox.appendChild(el);
-      setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 4000);
-    };
-
-    toBottom();
-    window.addEventListener('load', () => setTimeout(toBottom, 100));
-    box.addEventListener('scroll', () => {
-      stick = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
-    });
-    form.addEventListener('submit', () => { stick = true; });
-    form.addEventListener('htmx:afterRequest', (e) => {
-      if (e.detail.successful) form.reset();
-    });
-    document.body.addEventListener('htmx:afterSwap', (e) => {
-      if (e.target === box && stick) toBottom();
-    });
-
-    const attachForm = document.getElementById('attach-form');
-    const attachInput = document.getElementById('attach-input');
-    const uploadButtons = document.querySelectorAll('.upload-btn');
-    const status = document.getElementById('upload-status');
-    const statusName = document.getElementById('upload-name');
-    const statusPct = document.getElementById('upload-pct');
-    const statusBar = document.getElementById('upload-bar');
-
-    const setUploading = (on, name = '') => {
-      status.classList.toggle('hidden', !on);
-      uploadButtons.forEach((b) => { b.disabled = on; });
-      statusName.textContent = on ? `Mengunggah ${name}...` : '';
-      statusPct.textContent = '0%';
-      statusBar.style.width = '0%';
-    };
-
-    uploadButtons.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        attachInput.accept = btn.dataset.accept;
-        if (btn.dataset.capture) attachInput.setAttribute('capture', btn.dataset.capture);
-        else attachInput.removeAttribute('capture');
-        attachInput.click();
-      });
-    });
-
-    attachForm.addEventListener('change', () => { stick = true; });
-    attachForm.addEventListener('htmx:beforeRequest', (e) => {
-      const file = attachInput.files[0];
-      if (!file) { e.preventDefault(); return; }
-      const isImage = /\.(jpe?g|png|webp|gif)$/i.test(file.name);
-      const limit = Number(isImage ? attachForm.dataset.maxImage : attachForm.dataset.maxDoc);
-      if (file.size > limit) {
-        e.preventDefault();
-        toast(`File terlalu besar. Maksimal ${Math.round(limit / 1048576)} MB.`);
-        attachForm.reset();
-        return;
-      }
-      setUploading(true, file.name);
-    });
-    attachForm.addEventListener('htmx:xhr:progress', (e) => {
-      if (!e.detail.lengthComputable) return;
-      const pct = Math.round((e.detail.loaded / e.detail.total) * 100);
-      statusPct.textContent = pct + '%';
-      statusBar.style.width = pct + '%';
-    });
-    attachForm.addEventListener('htmx:afterRequest', () => setUploading(false));
-
-    document.body.addEventListener('htmx:responseError', (e) => {
-      const { xhr, requestConfig } = e.detail;
-      if (requestConfig && requestConfig.verb === 'get') return;
-      const text = xhr.responseText || '';
-      if (xhr.status === 413) toast('File terlalu besar untuk server.');
-      else if (xhr.status === 400 && text && !text.startsWith('<')) toast(text.slice(0, 200));
-      else toast(`Terjadi kesalahan (kode ${xhr.status}).`);
-    });
-    document.body.addEventListener('htmx:sendError', () => {
-      setUploading(false);
-      toast('Koneksi bermasalah. Coba lagi.');
-    });
-  }
-</script>
+<script src="{% static 'chat/js/toast.js' %}"></script>
+<script src="{% static 'chat/js/chat.js' %}"></script>
 {% endblock %}
