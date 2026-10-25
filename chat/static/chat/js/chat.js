@@ -1,8 +1,55 @@
 /* chat.js: scroll, lampiran, modal konfirmasi, dan penanganan error halaman chat. */
 (function () {
+  /* Pencarian percakapan (dilakukan di browser, tanpa request ke server) */
+  const convSearch = document.getElementById('conv-search');
+  if (convSearch) {
+    const items = document.querySelectorAll('.conv-item');
+    const emptyMsg = document.getElementById('conv-empty');
+    convSearch.addEventListener('input', () => {
+      const q = convSearch.value.trim().toLowerCase();
+      let shown = 0;
+      items.forEach((el) => {
+        const match = !q || el.dataset.search.includes(q);
+        el.hidden = !match;
+        if (match) shown += 1;
+      });
+      if (emptyMsg) emptyMsg.hidden = shown > 0 || items.length === 0;
+    });
+  }  
   const box = document.getElementById('messages');
   const form = document.getElementById('message-form');
   if (!box || !form) return; // halaman tanpa percakapan terpilih
+
+  /* Kolom pesan: Enter kirim, Shift+Enter baris baru, tinggi otomatis, hitungan karakter */
+  const msgInput = form.querySelector('textarea[name="content"]');
+  const counter = document.getElementById('char-count');
+  if (msgInput) {
+    const grow = () => {
+      msgInput.style.height = 'auto';
+      msgInput.style.height = Math.min(msgInput.scrollHeight, 128) + 'px';
+      if (counter) {
+        const left = msgInput.maxLength - msgInput.value.length;
+        counter.hidden = left > 200;
+        counter.textContent = left + ' karakter tersisa';
+      }
+    };
+    msgInput.addEventListener('input', grow);
+    msgInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+        e.preventDefault();
+        if (msgInput.value.trim()) form.requestSubmit();
+      }
+    });
+    form.addEventListener('htmx:afterRequest', () => setTimeout(grow, 0));
+  }
+
+  /* Menu lampiran: tutup setelah satu pilihan diklik */
+  const attachMenu = document.getElementById('attach-menu');
+  if (attachMenu) {
+    attachMenu.querySelectorAll('.menu-item').forEach((b) => {
+      b.addEventListener('click', () => attachMenu.removeAttribute('open'));
+    });
+  }  
 
   const toast = (msg, kind) => window.showToast(msg, kind);
   let stick = true;
