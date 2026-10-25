@@ -1,0 +1,11 @@
+{% if page.has_other_pages %}
+<nav class="closet-pagination" aria-label="Pagination">
+    {% if page.has_previous %}
+    <a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page.previous_page_number }}">&larr; Prev</a>
+    {% endif %}
+    <span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}
+    <a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page.next_page_number }}">Next &rarr;</a>
+    {% endif %}
+</nav>
+{% endif %}

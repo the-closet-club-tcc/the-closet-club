@@ -1,0 +1,29 @@
+{# Variabel: item, owner_mode (True di My Closet), status_choices, next_url #}
+<article class="closet-card">
+    <a href="{{ item.get_absolute_url }}" class="closet-card-image">
+        <img src="{{ item.photo.url }}" alt="{{ item.name }}" loading="lazy">
+        <span class="closet-badge closet-badge--{{ item.status }}">{{ item.get_status_display }}</span>
+    </a>
+    <div class="closet-card-body">
+        <h2><a href="{{ item.get_absolute_url }}">{{ item.name }}</a></h2>
+        <p class="closet-card-meta">Size {{ item.get_size_display }} &middot; {{ item.get_condition_display }}</p>
+
+        {% if owner_mode %}
+        <form method="post" action="{% url 'closet:item_status' item.pk %}" class="closet-status-form">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ next_url }}">
+            <label class="closet-visually-hidden" for="status-{{ item.pk }}">Availability</label>
+            <select name="status" id="status-{{ item.pk }}" class="closet-input closet-input--small" data-autosubmit>
+                {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if item.status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <noscript><button type="submit" class="closet-btn closet-btn--small">Save</button></noscript>
+        </form>
+        <div class="closet-card-actions">
+            <a href="{% url 'closet:item_edit' item.pk %}" class="closet-btn closet-btn--ghost closet-btn--small">Edit</a>
+            <a href="{% url 'closet:item_delete' item.pk %}" class="closet-btn closet-btn--danger closet-btn--small">Delete</a>
+        </div>
+        {% endif %}
+    </div>
+</article>

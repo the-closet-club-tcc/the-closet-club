@@ -1,18 +1,73 @@
-from django.shortcuts import render
-from django.shortcuts import render, redirect
 from django.contrib import messages
+from django.contrib.auth import login, logout
+from django.contrib.auth.forms import AuthenticationForm
+from django.shortcuts import render, redirect
+from django.utils import timezone
+from django.views.decorators.http import require_POST
+from django.contrib.auth.decorators import login_required
 from .forms import CustomUserCreationForm
 
+
 def register(request):
-    # kalau user menekan submit/daftar
-    if request.method == 'POST':
-        form = CustomUserCreationForm(request.POST, request.FILES)
-        if form.is_valid():
-            form.save() # simpan ke database
-            messages.success(request, 'Akun berhasil dibuat! Silakan login.')
-            return redirect('login') # arahkan ke halaman login
-    else:
-        # kalau userbelum submit apa apa
-        form = CustomUserCreationForm()
-    
-    return render(request, 'accounts/register.html', {'form': form})
+    form = CustomUserCreationForm(
+        request.POST or None,
+        request.FILES or None
+    )
+
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Akun berhasil dibuat! Silakan login.")
+        return redirect("login")
+
+    context = {
+        "form": form
+    }
+    return render(request, "accounts/register.html", context)
+
+
+def login_user(request):
+    form = AuthenticationForm(request, data=request.POST or None)
+
+    if request.method == "POST" and form.is_valid():
+        user = form.get_user()
+
+        login(request, user)
+
+        # Catat waktu login
+        waktu_login = timezone.localtime().strftime("%Y-%m-%d %H:%M:%S")
+
+        response = redirect("home")
+
+        # Simpan waktu login dalam cookie
+        response.set_cookie(
+            "last_login",
+            waktu_login,
+            httponly=True,
+            samesite="Lax"
+        )
+        return response
+
+    context = {
+        "form": form
+    }
+    return render(request, "accounts/login.html", context)
+
+
+@require_POST
+def logout_view(request):
+    logout(request)
+    response = redirect("home")
+    # Hapus cookie
+    response.delete_cookie("last_login")
+    return response
+
+
+@login_required(login_url="login")
+def profile(request):
+    user = request.user
+
+    context = {
+        "user_profile": user
+    }
+
+    return render(request, "accounts/profile.html", context)

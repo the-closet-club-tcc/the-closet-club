@@ -5,6 +5,7 @@ venv/
 !.env.example
 
 # Django Database & Cache
+media/
 db.sqlite3
 __pycache__/
 *.pyc
@@ -15,3 +16,6 @@ __pycache__/
 !.vscode/settings.json
 .idea/
 .coverage
+
+# Virtual env
+/the-closet-club/

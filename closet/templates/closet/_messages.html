@@ -1,0 +1,7 @@
+{% if messages %}
+<div class="closet-flash" role="status">
+    {% for message in messages %}
+    <p class="closet-flash-item closet-flash-{{ message.tags }}">{{ message }}</p>
+    {% endfor %}
+</div>
+{% endif %}
