@@ -31,7 +31,9 @@ def _get_conversation(user, conversation_id):
 
 def _recent_messages(conversation, user):
     """200 pesan terakhir yang masih terlihat oleh user, urut lama ke baru."""
-    qs = conversation.visible_messages(user).select_related('sender')
+    qs = conversation.visible_messages(user).select_related(
+        'sender', 'reply_to', 'reply_to__sender',
+    )    
     return list(reversed(qs.order_by('-created_at', '-id')[:MAX_MESSAGES]))
 
 
@@ -46,16 +48,7 @@ def _conversation_items(user, active_id=None):
         last = visible.order_by('-created_at', '-id').first()
         if last is None and conv.cleared_at_for(user):
             continue  # sudah dihapus dan belum ada pesan baru
-        if last is None:
-            preview = 'Belum ada pesan'
-        elif last.message_type == 'location':
-            preview = f'Lokasi: {last.place_name}'
-        elif last.message_type == 'image':
-            preview = 'Foto'
-        elif last.message_type == 'file':
-            preview = f'Dokumen: {last.attachment_name}'
-        else:
-            preview = last.content
+        preview = last.preview_text() if last else 'Belum ada pesan'
         unread = 0 if conv.id == active_id else (
             visible.filter(is_read=False).exclude(sender=user).count()
         )
@@ -96,8 +89,8 @@ def chat_index(request, conversation_id=None):
         'chat_messages': chat_messages,
         'max_image_bytes': MAX_UPLOAD,
         'max_doc_bytes': MAX_UPLOAD,
+        'quick_replies': QUICK_REPLIES,        
     })
-
 
 @login_required
 def conversation_list(request):
@@ -138,19 +131,23 @@ def messages_partial(request, conversation_id):
     conv = _get_conversation(request.user, conversation_id)
     return _render_messages(request, conv)
 
-
 @login_required
 @require_POST
 def send_message(request, conversation_id):
     conv = _get_conversation(request.user, conversation_id)
     content = request.POST.get('content', '').strip()[:2000]
     if content:
+        reply_to = None
+        raw = request.POST.get('reply_to', '')
+        if raw.isdigit():
+            # hanya pesan di percakapan ini yang masih terlihat oleh pengirim
+            reply_to = conv.visible_messages(request.user).filter(pk=int(raw)).first()
         Message.objects.create(
             conversation=conv, sender=request.user, content=content,
+            reply_to=reply_to, has_reply=reply_to is not None,
         )
         conv.save(update_fields=['updated_at'])
     return _render_messages(request, conv)
-
 
 @login_required
 @require_http_methods(['GET', 'POST'])
@@ -232,6 +229,10 @@ def send_location(request, conversation_id):
 
 MAX_UPLOAD = 10 * 1024 * 1024
 MAX_MESSAGES = 200
+QUICK_REPLIES = [
+    'Masih tersedia?', 'Boleh nego?', 'Ukurannya muat?',
+    'Bisa ketemu hari ini?', 'Terima kasih!',
+]
 IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
 DOC_EXTS = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt'}
 
