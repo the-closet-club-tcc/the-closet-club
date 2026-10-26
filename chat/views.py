@@ -1,6 +1,7 @@
 import io
 import mimetypes
 import os
+
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, render
@@ -13,32 +14,38 @@ from django.core.exceptions import SuspiciousFileOperation
 from django.db import transaction
 from django.utils.http import content_disposition_header
 from django.utils.text import get_valid_filename
+from django.urls import reverse
+from django.utils import timezone
 from PIL import Image, ImageOps
 
 from .osm import search_places
 from .models import Attachment, Conversation, Message
 
-
-@login_required
-def chat_index(request, conversation_id=None):
-    user = request.user
-
-    # Hanya percakapan yang melibatkan user ini
-    base_qs = Conversation.objects.filter(
+def _get_conversation(user, conversation_id):
+    """Percakapan hanya bisa diakses peserta. Selain itu 404."""
+    qs = Conversation.objects.filter(
         Q(user1=user) | Q(user2=user)
     ).select_related('user1', 'user2')
+    return get_object_or_404(qs, pk=conversation_id)
 
-    active = None
-    chat_messages = []
-    if conversation_id is not None:
-        # User yang bukan peserta otomatis dapat 404
-        active = get_object_or_404(base_qs, pk=conversation_id)
-        active.messages.filter(is_read=False).exclude(sender=user).update(is_read=True)
-        chat_messages = active.messages.select_related('sender')
 
+def _recent_messages(conversation, user):
+    """200 pesan terakhir yang masih terlihat oleh user, urut lama ke baru."""
+    qs = conversation.visible_messages(user).select_related('sender')
+    return list(reversed(qs.order_by('-created_at', '-id')[:MAX_MESSAGES]))
+
+
+def _conversation_items(user, active_id=None):
+    """Data daftar percakapan di kolom kiri (tanpa yang sudah dihapus user)."""
+    convs = Conversation.objects.filter(
+        Q(user1=user) | Q(user2=user)
+    ).select_related('user1', 'user2')
     items = []
-    for conv in base_qs:
-        last = conv.messages.order_by('-created_at').first()
+    for conv in convs:
+        visible = conv.visible_messages(user)
+        last = visible.order_by('-created_at', '-id').first()
+        if last is None and conv.cleared_at_for(user):
+            continue  # sudah dihapus dan belum ada pesan baru
         if last is None:
             preview = 'Belum ada pesan'
         elif last.message_type == 'location':
@@ -49,36 +56,17 @@ def chat_index(request, conversation_id=None):
             preview = f'Dokumen: {last.attachment_name}'
         else:
             preview = last.content
+        unread = 0 if conv.id == active_id else (
+            visible.filter(is_read=False).exclude(sender=user).count()
+        )
         items.append({
             'conversation': conv,
             'other': conv.other_user(user),
             'preview': preview,
             'last_time': last.created_at if last else conv.created_at,
-            'unread': conv.messages.filter(is_read=False).exclude(sender=user).count(),
+            'unread': unread,
         })
-
-    new_users = None
-    if request.GET.get('new'):
-        q = request.GET.get('q', '').strip()
-        qs = get_user_model().objects.exclude(pk=user.pk)
-        if q:
-            qs = qs.filter(username__icontains=q)
-        new_users = qs.order_by('username')[:50]    
-
-    return render(request, 'chat/index.html', {
-        'conversations': items,
-        'active': active,
-        'other_user': active.other_user(user) if active else None,
-        'chat_messages': chat_messages,
-        'new_users': new_users,
-        'max_image_bytes': MAX_UPLOAD,
-        'max_doc_bytes': MAX_UPLOAD,        
-    })
-
-def _get_conversation(user, conversation_id):
-    """Percakapan hanya bisa diakses peserta. Selain itu 404."""
-    qs = Conversation.objects.filter(Q(user1=user) | Q(user2=user))
-    return get_object_or_404(qs, pk=conversation_id)
+    return items
 
 
 def _render_messages(request, conversation):
@@ -86,9 +74,64 @@ def _render_messages(request, conversation):
         sender=request.user
     ).update(is_read=True)
     return render(request, 'chat/_messages.html', {
-        'chat_messages': conversation.messages.select_related('sender'),
+        'chat_messages': _recent_messages(conversation, request.user),
     })
 
+
+@login_required
+def chat_index(request, conversation_id=None):
+    user = request.user
+    active = None
+    chat_messages = []
+    if conversation_id is not None:
+        active = _get_conversation(user, conversation_id)  # non-peserta -> 404
+        active.messages.filter(is_read=False).exclude(sender=user).update(is_read=True)
+        chat_messages = _recent_messages(active, user)
+
+    return render(request, 'chat/index.html', {
+        'conversations': _conversation_items(user, active.id if active else None),
+        'active': active,
+        'active_id': active.id if active else None,
+        'other_user': active.other_user(user) if active else None,
+        'chat_messages': chat_messages,
+        'max_image_bytes': MAX_UPLOAD,
+        'max_doc_bytes': MAX_UPLOAD,
+    })
+
+
+@login_required
+def conversation_list(request):
+    raw = request.GET.get('active', '')
+    active_id = int(raw) if raw.isdigit() else None
+    return render(request, 'chat/_conversation_list.html', {
+        'conversations': _conversation_items(request.user, active_id),
+        'active_id': active_id,
+    })
+
+
+@login_required
+def user_search(request):
+    q = request.GET.get('q', '').strip()[:50]
+    qs = get_user_model().objects.exclude(pk=request.user.pk)
+    if q:
+        qs = qs.filter(username__icontains=q)
+    return render(request, 'chat/_user_results.html', {
+        'new_users': qs.order_by('username')[:20], 'q': q,
+    })
+
+
+@login_required
+@require_POST
+def delete_conversation(request, conversation_id):
+    conv = _get_conversation(request.user, conversation_id)
+    now = timezone.now()
+    if request.user.pk == conv.user1_id:
+        conv.cleared_at_user1 = now
+        conv.save(update_fields=['cleared_at_user1'])
+    else:
+        conv.cleared_at_user2 = now
+        conv.save(update_fields=['cleared_at_user2'])
+    return redirect(f"{reverse('chat:index')}?deleted=1")
 
 @login_required
 def messages_partial(request, conversation_id):
@@ -188,6 +231,7 @@ def send_location(request, conversation_id):
     return _render_messages(request, conv)
 
 MAX_UPLOAD = 10 * 1024 * 1024
+MAX_MESSAGES = 200
 IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
 DOC_EXTS = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt'}
 
