@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Feed &amp; Clothing · The Closet Club{% endblock %}
+{% block title %}Feed &amp; Clothing | The Closet Club{% endblock %}
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'css/feed.css' %}">
@@ -35,6 +35,17 @@
                 {% endfor %}
             </fieldset>
 
+            <fieldset class="filter-group">
+                <legend>Offer</legend>
+                {% for value, label in offer_choices %}
+                <label class="check">
+                    <input type="checkbox" name="offer" value="{{ value }}" data-autosubmit
+                           {% if value in selected_offers %}checked{% endif %}>
+                    <span>{{ label }}</span>
+                </label>
+                {% endfor %}
+            </fieldset>
+
             <div class="filter-actions">
                 <button type="submit" class="btn btn-dark">Apply</button>
                 {% if has_filters %}<a href="{% url 'feed:index' %}" class="btn btn-ghost">Reset</a>{% endif %}
@@ -60,14 +71,14 @@
                 </div>
 
                 {% if user.is_authenticated %}
-                <a href="{% url 'feed:create' %}" class="btn btn-dark btn-post"><i class="bi bi-plus-lg"></i> Post outfit</a>
+                <a href="{% url 'feed:create' %}" class="btn btn-dark"><i class="bi bi-plus-lg"></i> Post outfit</a>
                 {% endif %}
             </div>
 
             {% if page_obj.object_list %}
             <div class="feed-grid">
                 {% for post in page_obj %}
-                    {% include 'feed/_post_card.html' %}
+                {% include 'feed/_post_card.html' %}
                 {% endfor %}
             </div>
 

@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Outfit by {{ post.author.username }} · The Closet Club{% endblock %}
+{% block title %}Outfit by {{ post.author.username }} | The Closet Club{% endblock %}
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'css/feed.css' %}">
@@ -46,7 +46,7 @@
                 </a>
                 {% endif %}
 
-                {% if user == post.author %}
+                {% if is_author %}
                 <form method="post" action="{% url 'feed:delete' post.pk %}"
                       onsubmit="return confirm('Delete this outfit post?');">
                     {% csrf_token %}
@@ -60,20 +60,26 @@
             <ul class="tagged-list">
                 {% for item in post.clothes.all %}
                 <li class="tagged-item">
-                    {% if item.image %}
-                        <img src="{{ item.image.url }}" alt="{{ item.name }}">
+                    {# Personal items are private in My Closet, so only link to items that are visible #}
+                    {% if item.is_offered or is_author %}
+                    <a href="{{ item.get_absolute_url }}" class="tagged-thumb"><img src="{{ item.photo.url }}" alt="{{ item.name }}"></a>
                     {% else %}
-                        <span class="tagged-placeholder"><i class="bi bi-bag"></i></span>
+                    <span class="tagged-thumb"><img src="{{ item.photo.url }}" alt="{{ item.name }}"></span>
                     {% endif %}
+
                     <div class="tagged-text">
+                        {% if item.is_offered or is_author %}
+                        <a href="{{ item.get_absolute_url }}"><strong>{{ item.name }}</strong></a>
+                        {% else %}
                         <strong>{{ item.name }}</strong>
-                        <span class="muted">Size {{ item.size }} · {{ item.get_condition_display }}</span>
+                        {% endif %}
+                        <span class="muted">Size {{ item.get_size_display }} &middot; {{ item.get_condition_display }}</span>
                         <span class="status status-{{ item.status }}">{{ item.get_status_display }}</span>
                     </div>
 
-                    {% if item.status == 'available' and user != post.author %}
+                    {% if item.is_offered and not is_author %}
                         {% if user.is_authenticated %}
-                        <!-- Hands off to Chat: opens (or reuses) a conversation about this item -->
+                        {# Hands off to Chat: opens (or reuses) a conversation about this item #}
                         <form method="post" action="{% url 'chat:start' post.author.pk %}">
                             {% csrf_token %}
                             <input type="hidden" name="item_id" value="{{ item.pk }}">
@@ -87,6 +93,11 @@
                 </li>
                 {% endfor %}
             </ul>
+            {% if not is_author %}
+            <p class="closet-link">
+                <a href="{% url 'closet:user_closet' post.author.username %}">See everything @{{ post.author.username }} has on offer <i class="bi bi-arrow-right"></i></a>
+            </p>
+            {% endif %}
             {% else %}
             <p class="muted">No items were tagged in this post.</p>
             {% endif %}

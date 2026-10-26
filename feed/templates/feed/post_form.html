@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Post an outfit · The Closet Club{% endblock %}
+{% block title %}Post an outfit | The Closet Club{% endblock %}
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'css/feed.css' %}">
@@ -34,7 +34,7 @@
             {% if has_clothes %}
                 <div class="clothes-picker">{{ form.clothes }}</div>
             {% else %}
-                <p class="muted">You haven't added any clothes yet. Add items to My Closet first, then tag them here.</p>
+                <p class="muted">You haven't added any clothes yet. <a href="{% url 'closet:item_add' %}">Add an item to My Closet</a> first, then tag it here.</p>
             {% endif %}
             {{ form.clothes.errors }}
         </div>

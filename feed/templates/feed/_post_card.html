@@ -3,15 +3,15 @@
         <img src="{{ post.image.url }}" alt="Outfit by {{ post.author.username }}" loading="lazy">
     </a>
     <div class="post-card-body">
-        <p class="post-card-caption">{{ post.caption|default:"Untitled outfit"|truncatechars:60 }}</p>
+        <p class="post-card-caption"><a href="{{ post.get_absolute_url }}">{{ post.caption|default:"Untitled outfit"|truncatechars:60 }}</a></p>
         <div class="post-card-meta">
-            <a href="{{ post.get_absolute_url }}" class="post-card-author">
+            <span class="post-card-author">
                 @{{ post.author.username }}
                 {% if post.author.is_verified %}<i class="bi bi-patch-check-fill verified" title="Verified"></i>{% endif %}
-            </a>
+            </span>
             <span class="post-card-stats">
-                <i class="bi bi-heart"></i> {{ post.like_count }}
-                <i class="bi bi-bag"></i> {{ post.clothes.all|length }}
+                <span title="Likes"><i class="bi bi-heart"></i> {{ post.like_count }}</span>
+                <span title="Tagged items"><i class="bi bi-bag"></i> {{ post.clothes.all|length }}</span>
             </span>
         </div>
     </div>

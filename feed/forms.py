@@ -1,6 +1,6 @@
 from django import forms
 
-from closet.models import Clothes
+from closet.models import Clothing
 from .models import OutfitPost
 
 MAX_IMAGE_MB = 5
@@ -11,6 +11,7 @@ class OutfitPostForm(forms.ModelForm):
         model = OutfitPost
         fields = ['image', 'caption', 'clothes']
         widgets = {
+            'image': forms.FileInput(attrs={'accept': 'image/*'}),
             'caption': forms.Textarea(attrs={'rows': 3, 'placeholder': 'Tell us about this outfit...'}),
             'clothes': forms.CheckboxSelectMultiple,
         }
@@ -19,9 +20,13 @@ class OutfitPostForm(forms.ModelForm):
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         # Users can only tag clothes that are in their own closet
-        qs = Clothes.objects.filter(owner=user) if user else Clothes.objects.none()
-        self.fields['clothes'].queryset = qs
-        self.fields['clothes'].required = False
+        qs = Clothing.objects.filter(owner=user) if user else Clothing.objects.none()
+        field = self.fields['clothes']
+        field.queryset = qs
+        field.required = False
+        field.label_from_instance = (
+            lambda c: f'{c.name} · {c.get_size_display()} · {c.get_status_display()}'
+        )
 
     def clean_image(self):
         image = self.cleaned_data['image']
