@@ -18,7 +18,7 @@
             <p class="text-sm text-gray-600">{{ m.address }}</p>
             <a href="https://www.openstreetmap.org/?mlat={{ m.latitude|unlocalize }}&mlon={{ m.longitude|unlocalize }}#map=17/{{ m.latitude|unlocalize }}/{{ m.longitude|unlocalize }}"
                target="_blank" rel="noopener"
-               class="mt-2 inline-block rounded-lg border border-[#344536] px-3 py-1 text-sm">Buka di Peta</a>
+               class="mt-2 inline-block rounded-lg border border-[#344536] px-3 py-1 text-sm text-[#344536]">Buka di Peta</a>
           </div>
         </div>
       {% elif m.message_type == 'image' %}
