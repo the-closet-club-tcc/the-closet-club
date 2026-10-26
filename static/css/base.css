@@ -83,14 +83,44 @@ a {
     border-radius: 6px;
 }
 
-/* USERNAME DI NAVBAR */
-.nav-user {
-    font-size: 13px;
-    color: #344536;
-    font-weight: 700;
-    font-family: 'Work Sans', sans-serif;
 
+.navbar-menu .nav-avatar-link {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #344536;
+    color: white;
+    text-decoration: none;
 }
+
+/* foto profil */
+.nav-avatar-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.nav-avatar-initial {
+    font-size: 17px;
+    font-weight: 600;
+    color: white;
+}
+
+.navbar-menu .nav-avatar-link:hover {
+    transform: scale(1.1);
+}
+
+.navbar-menu .nav-avatar-link:focus-visible {
+    outline: 2px solid #344536;
+    outline-offset: 3px;
+}
+
 
 /*LOGOUT */
 .navbar-menu form {
@@ -103,6 +133,11 @@ a {
     font-size: 13px;
     border: none;
     cursor: pointer;
+    transition: transform 0.3s ease;
+}
+
+.navbar-menu button.nav-register:hover {
+    transform: scale(1.1);
 }
 
 

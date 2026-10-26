@@ -6,7 +6,8 @@ from django.db.models import Avg
 class User(AbstractUser):
     foto_profil = models.ImageField(upload_to='profile_pics/', null = True, blank = True)
     is_verified = models.BooleanField(default=False)
-
+    bio = models.TextField(blank=True)
+    lokasi = models.CharField(max_length=100, blank=True)
     def get_rata_rata_rating(self):
         rata_rata = self.reviews_received.aggregate(Avg('rating'))['rating__avg']
         return round(rata_rata, 1) if rata_rata is not None else 0.0
@@ -26,8 +27,7 @@ class Verification(models.Model):
 
 class Review(models.Model):
     pemberi_review = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reviews_given')
-    penerima_review = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reviews_received')
-    
+    penerima_review = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reviews_received')  
     rating = models.DecimalField(max_digits=2, decimal_places=1)
     komentar = models.TextField(blank=True, null=True)
     tanggal = models.DateTimeField(auto_now_add=True)
