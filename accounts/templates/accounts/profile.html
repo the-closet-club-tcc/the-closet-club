@@ -12,6 +12,11 @@
 
 <section class="profile-page">
     <div class="profile-container">
+        {% for message in messages %}
+            <p class="profile-message">
+                {{ message }}
+            </p>
+        {% endfor %}
 
         <!-- header -->
         <div class="profile-header">
@@ -32,7 +37,7 @@
 
             <!-- informasi user -->
             <div class="profile-info">
-
+                
                 <div class="profile-name-row">
                     <h1>
                         {% if user_profile.get_full_name %}
@@ -41,14 +46,13 @@
                             {{ user_profile.username }}
                         {% endif %}
                     </h1>
-
                     {% if user_profile.is_verified %}
                         <span class="profile-verified">
                             ✓ Verified
                         </span>
                     {% endif %}
                 </div>
-
+                <!-- username -->
                 <p class="profile-username">
                     @{{ user_profile.username }}
                 </p>
@@ -95,6 +99,58 @@
             {% endif %}
 
         </div>
+
+        
+        <!-- account verification -->
+        {% if user == user_profile %}
+        <section class="profile-verification">
+
+            <h2>Account Verification</h2>
+
+            {% if user_profile.is_verified %}
+
+                <p class="verification-success">
+                    ✓ Your account is verified.
+                </p>
+
+            {% elif user_profile.verification.status == "pending" %}
+
+                <p class="verification-pending">
+                    Your verification request is pending review.
+                </p>
+
+            {% elif user_profile.verification.status == "rejected" %}
+
+                <p class="verification-rejected">
+                    Your previous verification request was rejected.
+                </p>
+
+                <form method="POST" action="{% url 'request_verification' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="profile-verify-btn">
+                        Request Verification Again
+                    </button>
+                </form>
+
+            {% else %}
+
+                <p>
+                    Complete your profile and request verification
+                    to receive a verified badge.
+                </p>
+
+                <form method="POST" action="{% url 'request_verification' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="profile-verify-btn">
+                        Request Verification
+                    </button>
+                </form>
+
+            {% endif %}
+
+        </section>
+        {% endif %}
+
 
         <!-- closet -->
         <section class="profile-closet">

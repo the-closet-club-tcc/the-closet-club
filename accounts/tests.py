@@ -1,6 +1,7 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from .models import Verification
 
 User = get_user_model()
 
@@ -346,7 +347,7 @@ class PublicProfileTests(TestCase):
             response,
             "accounts/profile.html"
         )
-        self.contains(response, "@sofita")
+        self.assertContains(response, "@sofita")
 
     # user lain tidak melihat tombol edit profile
     def test_visitor_cannot_edit_profile(self):
@@ -378,4 +379,263 @@ class PublicProfileTests(TestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, 404)
+
+
+# test verification
+class VerificationTests(TestCase):
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="burhan",
+            password="TestBurhan123",
+            email="burhan@example.com",
+            first_name="Burhan",
+            last_name="Udin"
+        )
+
+        self.url = reverse("request_verification")
+
+    # user harus login sebelum mengajukan verifikasi
+    def test_verification_requires_login(self):
+        response = self.client.post(self.url)
+
+        self.assertRedirects(
+            response,
+            f"{reverse('login')}?next={self.url}"
+        )
+
+        self.assertFalse(
+            Verification.objects.filter(user=self.user).exists()
+        )
+
+    # pengajuan harus menggunakan POST, bukan GET
+    def test_verification_requires_post(self):
+        self.client.force_login(self.user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 405)
+        self.assertFalse(
+            Verification.objects.filter(user=self.user).exists()
+        )
+
+    # tidak boleh mengajukan jika nama belum lengkap
+    def test_verification_incomplete_name(self):
+        self.user.first_name = ""
+        self.user.save(update_fields=["first_name"])
+        self.client.force_login(self.user)
+
+        response = self.client.post(self.url)
+
+        self.assertRedirects(
+            response,
+            reverse("edit_profile")
+        )
+
+        self.assertFalse(
+            Verification.objects.filter(user=self.user).exists()
+        )
+
+    # tidak boleh mengajukan jika email kosong
+    def test_verification_missing_email(self):
+        self.user.email = ""
+        self.user.save(update_fields=["email"])
+
+        self.client.force_login(self.user)
+
+        response = self.client.post(self.url)
+
+        self.assertRedirects(
+            response,
+            reverse("edit_profile")
+        )
+
+        self.assertFalse(
+            Verification.objects.filter(user=self.user).exists()
+        )
+
+    # pengajuan baru berhasil dibuat dengan status pending
+    def test_request_verification_success(self):
+        self.client.force_login(self.user)
+        response = self.client.post(self.url)
+        self.assertRedirects(
+            response,
+            reverse("profile")
+        )
+
+        verification = Verification.objects.get(user=self.user)
+
+        self.assertEqual(verification.status, "pending")
+
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.is_verified)
+
+    # klik pengajuan tidak membuat data duplikat
+    def test_duplicate_verification_request(self):
+        self.client.force_login(self.user)
+        self.client.post(self.url)
+        self.client.post(self.url)
+
+        self.assertEqual(
+            Verification.objects.filter(user=self.user).count(),
+            1
+        )
+
+    # pengajuan yang ditolak boleh diajukan ulang
+    def test_rejected_verification_can_retry(self):
+        verification = Verification.objects.create(
+            user=self.user,
+            status="rejected"
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.post(self.url)
+        verification.refresh_from_db()
+        self.assertRedirects(response, reverse("profile"))
+        self.assertEqual(verification.status, "pending")
+        self.assertEqual(
+            Verification.objects.filter(user=self.user).count(),
+            1
+        )
+
+    # user yang sudah verified tidak boleh mengajukan lagi
+    def test_verified_user_cannot_request_again(self):
+        self.user.is_verified = True
+        self.user.save(update_fields=["is_verified"])
+
+        verification = Verification.objects.create(
+            user=self.user,
+            status="approved"
+        )
+        self.client.force_login(self.user)
+        response = self.client.post(self.url)
+        verification.refresh_from_db()
+        self.assertRedirects(response, reverse("profile"))
+        self.assertEqual(verification.status, "approved")
+
+        self.assertEqual(
+            Verification.objects.filter(user=self.user).count(),
+            1
+        )
+
+
+# test admin
+
+class VerificationAdminTests(TestCase):
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="burhan",
+            password="TestBurhan123",
+            first_name="Burhan",
+            last_name="Udin",
+            email="burhan@example.com"
+        )
+
+        self.admin_user = User.objects.create_superuser(
+            username="admin_tcc",
+            email="admin@example.com",
+            password="AdminTest123"
+        )
+
+        # pengajuan awal berstatus pending
+        self.verification = Verification.objects.create(
+            user=self.user,
+            status="pending"
+        )
+
+        self.admin_url = reverse(
+            "admin:accounts_verification_change",
+            args=[self.verification.pk]
+        )
+
+    # admin menyetujui verifikasi
+    def test_admin_approve_verification(self):
+        self.client.force_login(self.admin_user)
+
+        response = self.client.post(
+            self.admin_url,
+            {
+                "status": "approved",
+                "_save": "Save"
+            }
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        self.verification.refresh_from_db()
+        self.user.refresh_from_db()
+
+        self.assertEqual(
+            self.verification.status,
+            "approved"
+        )
+
+        self.assertTrue(self.user.is_verified)
+
+        # badge verified harus muncul pada public profile
+        profile_url = reverse(
+            "public_profile",
+            kwargs={"username": "burhan"}
+        )
+
+        response = self.client.get(profile_url)
+        self.assertContains(
+            response,
+            'class="profile-verified"'
+        )
+
+    # admin menolak verifikasi
+    def test_admin_reject_verification(self):
+        # Anggap akun sebelumnya sudah verified
+        self.verification.status = "approved"
+        self.verification.save()
+
+        self.user.is_verified = True
+        self.user.save(update_fields=["is_verified"])
+
+        self.client.force_login(self.admin_user)
+
+        response = self.client.post(
+            self.admin_url,
+            {
+                "status": "rejected",
+                "_save": "Save"
+            }
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        self.verification.refresh_from_db()
+        self.user.refresh_from_db()
+
+        self.assertEqual(
+            self.verification.status,
+            "rejected"
+        )
+
+        self.assertFalse(self.user.is_verified)
+
+    # user biasa tidak boleh approve melalui Django Admin
+    def test_normal_user_cannot_approve(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            self.admin_url,
+            {
+                "status": "approved",
+                "_save": "Save"
+            }
+        )
+
+        # user biasa tidak mendapatkan akses admin
+        self.assertEqual(response.status_code, 302)
+
+        self.verification.refresh_from_db()
+        self.user.refresh_from_db()
+
+        self.assertEqual(
+            self.verification.status,
+            "pending"
+        )
+
+        self.assertFalse(self.user.is_verified)
 
