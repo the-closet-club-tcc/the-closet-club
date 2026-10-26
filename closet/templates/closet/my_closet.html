@@ -36,6 +36,7 @@
         {% url 'closet:my_closet' as action_url %}
         {% include 'closet/_filters.html' with action_url=action_url keep_status=True %}
 
+        <div id="closet-results">
         {% if page.object_list %}
         <div class="closet-grid">
             {% for item in page.object_list %}
@@ -55,6 +56,7 @@
             <a href="{% url 'closet:item_add' %}" class="closet-btn closet-btn--dark">Add your first item</a>
         </div>
         {% endif %}
+        </div>
 
     </div>
 </section>
