@@ -29,6 +29,7 @@ urlpatterns = [
     path('accounts/', include('accounts.urls')),
     path('swap/', include('swap.urls')),
     path('closet/', include('closet.urls')),
+    path('feed/', include('feed.urls')),
 ]
 
 if settings.DEBUG:
