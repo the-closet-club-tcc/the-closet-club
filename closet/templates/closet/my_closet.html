@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}My Closet | The Closet Club{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/closet.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="closet-page">
+    <div class="closet-container">
+
+        <header class="closet-header">
+            <div>
+                <h1>My Closet</h1>
+                <p>
+                    {{ total_count }} item{{ total_count|pluralize }} in your closet
+                    &middot; {{ offered_count }} offered to the community
+                </p>
+            </div>
+            <a href="{% url 'closet:item_add' %}" class="closet-btn closet-btn--dark">+ Add clothing</a>
+        </header>
+
+        {% include 'closet/_messages.html' %}
+
+        <nav class="closet-tabs" aria-label="Filter by availability">
+            {% for tab in tabs %}
+            <a href="{% url 'closet:my_closet' %}{% if tab.value %}?status={{ tab.value }}{% endif %}"
+               class="closet-tab {% if tab.active %}is-active{% endif %}">
+                {{ tab.label }} <span>{{ tab.count }}</span>
+            </a>
+            {% endfor %}
+        </nav>
+
+        {% url 'closet:my_closet' as action_url %}
+        {% include 'closet/_filters.html' with action_url=action_url keep_status=True %}
+
+        <div id="closet-results">
+        {% if page.object_list %}
+        <div class="closet-grid">
+            {% for item in page.object_list %}
+            {% include 'closet/_card.html' with item=item owner_mode=True next_url=request.get_full_path %}
+            {% endfor %}
+        </div>
+        {% include 'closet/_pagination.html' %}
+        {% elif is_filtered %}
+        <div class="closet-empty">
+            <h2>No matching items</h2>
+            <p>Try a different search or reset the filters.</p>
+        </div>
+        {% else %}
+        <div class="closet-empty">
+            <h2>Your closet is empty</h2>
+            <p>Add the pieces you own, then mark the ones you are ready to swap.</p>
+            <a href="{% url 'closet:item_add' %}" class="closet-btn closet-btn--dark">Add your first item</a>
+        </div>
+        {% endif %}
+        </div>
+
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/closet.js' %}"></script>
+{% endblock %}

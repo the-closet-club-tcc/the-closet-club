@@ -30,8 +30,9 @@
 
         <nav class="navbar-menu">
             <a href="#">Feed & Clothing</a>
-            <a href="#">My Closet</a>
-            <a href="#">Community</a>
+            <a href="{% url 'closet:my_closet' %}">My Closet</a>
+            <a href="{% url 'swap:index' %}">Swap</a>
+            <a href="{% url 'chat:index' %}">Chat</a>
             <a href="#">Contact</a>
 
             {% if user.is_authenticated %}
@@ -80,7 +81,7 @@
             <!-- FOOTER TOP -->
             <div class="footer-top">
                 <h2 class="footer-title">
-                    Wear Again.Share More.Waste Less.
+                    Wear Again. Share More.Waste Less.
                 </h2>
                 <p class="footer-subtitle">
                     Your next favorite piece doesn't have to be new.

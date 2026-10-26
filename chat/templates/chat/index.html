@@ -1,127 +1,154 @@
 {% extends 'base.html' %}
-
+{% load static %}
 {% block title %}Pesan | The Closet Club{% endblock %}
 
 {% block extra_head %}
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 <style type="text/tailwindcss">
+  @layer theme, base, components, utilities;
   @import "tailwindcss/theme.css" layer(theme);
-  @import "tailwindcss/utilities.css" layer(utilities);
+  @import "tailwindcss/utilities.css" layer(utilities) important;
+  @theme {
+    --font-sans: 'Work Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-serif: 'Gloock', ui-serif, Georgia, serif;
+  }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
+<link rel="stylesheet" href="{% static 'chat/css/chat.css' %}">
 {% endblock %}
 
 {% block content %}
-<div class="mx-auto my-6 flex h-[calc(100dvh-10rem)] min-h-[560px] max-w-6xl overflow-hidden rounded-2xl bg-white shadow"
+<div class="chat-root mx-auto flex max-w-6xl overflow-hidden bg-white font-sans md:my-6 md:rounded-2xl md:shadow"
      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 
   <!-- Kiri: daftar percakapan -->
-  <aside class="flex w-80 shrink-0 flex-col border-r">
-    <h1 class="p-6 font-serif text-3xl">Pesan</h1>
-    <a href="{% url 'chat:index' %}?new=1"
-      class="mx-6 mb-3 rounded-lg bg-[#344536] px-4 py-2 text-center text-white">+ Pesan baru</a>
-    <div class="min-h-0 flex-1 overflow-y-auto">
-      {% for c in conversations %}
-      <a href="{% url 'chat:room' c.conversation.id %}"
-         class="flex items-center gap-3 p-4 {% if active and active.id == c.conversation.id %}bg-[#D9C7AF]{% endif %}">
-        <div class="min-w-0 flex-1">
-          <p class="font-semibold">{{ c.other.username }}</p>
-          <p class="truncate text-sm text-gray-600">{{ c.preview }}</p>
-        </div>
-        <div class="flex flex-col items-end gap-1 text-xs text-gray-500">
-          <span>{{ c.last_time|time:"H:i" }}</span>
-          {% if c.unread %}
-          <span class="rounded-full bg-[#344536] px-2 py-0.5 text-white">{{ c.unread }}</span>
-          {% endif %}
-        </div>
-      </a>
-      {% empty %}
-      <p class="p-6 text-gray-500">Belum ada percakapan</p>
-      {% endfor %}
+  <aside class="{% if active %}hidden md:flex{% else %}flex{% endif %} w-full shrink-0 flex-col border-r border-[#E8E0D0] md:w-80">
+    <div class="flex items-center justify-between gap-2 px-5 pb-3 pt-5">
+      <h1 class="font-serif text-3xl font-normal leading-none">Pesan
+        <span class="ml-1 align-middle rounded-full bg-[#EFE5D8] px-2 py-0.5 font-sans text-xs font-semibold">{{ conversations|length }}</span>
+      </h1>
+      <button type="button" popovertarget="new-chat-modal"
+              hx-get="{% url 'chat:user_search' %}" hx-target="#user-results" hx-swap="innerHTML"
+              class="rounded-full bg-[#344536] px-3 py-1.5 text-sm text-white"><i class="bi bi-plus-lg"></i> Baru</button>
+    </div>
+    <div class="px-5 pb-3">
+      <label class="relative block">
+        <i class="bi bi-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+        <input id="conv-search" type="search" placeholder="Cari percakapan" autocomplete="off"
+               class="w-full rounded-xl border border-[#E8E0D0] bg-white py-2 pl-9 pr-3 text-base md:text-sm">
+      </label>
+    </div>
+    <div id="conv-list" class="min-h-0 flex-1 overflow-y-auto px-2 pb-2"
+         hx-get="{% url 'chat:conversation_list' %}{% if active %}?active={{ active.id }}{% endif %}"
+         hx-trigger="every 5s [document.visibilityState === 'visible']"
+         hx-swap="innerHTML">
+      {% include 'chat/_conversation_list.html' %}
     </div>
   </aside>
 
   <!-- Kanan: chat room -->
-  <section class="flex min-w-0 flex-1 flex-col bg-[#F8F3E9]">
+  <section class="{% if active %}flex{% else %}hidden md:flex{% endif %} min-w-0 flex-1 flex-col bg-[#F8F3E9]">
     {% if active %}
-      <header class="flex items-center justify-between border-b bg-white px-6 py-4">
-        <p class="font-semibold">{{ other_user.username }}</p>
-        <button class="rounded-lg bg-[#344536] px-4 py-2 text-white">Ajukan Swap</button>
+      <header class="flex items-center gap-3 border-b border-[#E8E0D0] bg-white px-4 py-3 md:px-6">
+        <a href="{% url 'chat:index' %}" class="md:hidden" aria-label="Kembali ke daftar pesan">
+          <i class="bi bi-arrow-left text-xl"></i>
+        </a>
+        {% include 'chat/components/avatar.html' with person=other_user size=48 %}
+        <div class="min-w-0 flex-1">
+          <p class="flex items-center gap-1.5 font-semibold">
+            <span class="truncate">{{ other_user.username }}</span>
+            {% if other_user.is_verified %}<i class="bi bi-patch-check-fill text-[#344536]" title="Terverifikasi"></i>{% endif %}
+          </p>
+          <p class="text-xs text-gray-500">
+            {% with n=other_user.reviews_received.count %}
+              {% if n %}<i class="bi bi-star-fill text-[#B8863B]"></i> {{ other_user.get_rata_rata_rating }} · {{ n }} ulasan{% else %}Belum ada ulasan{% endif %}
+            {% endwith %}
+          </p>
+        </div>
+        <div class="flex shrink-0 items-center gap-2">
+          {# TODO: arahkan ke closet publik user ini kalau modul Closet menyediakan URL-nya #}
+          <button type="button" disabled title="Segera hadir"
+                  class="hidden rounded-lg border border-[#344536] px-3 py-2 text-sm text-[#344536] opacity-50 sm:inline-block">Lihat Closet</button>
+          <a href="{% url 'swap:index' %}"
+             class="rounded-lg bg-[#344536] px-3 py-2 text-xs text-white sm:text-sm">Ajukan Swap</a>
+          <button type="button" class="icon-btn" popovertarget="delete-conv-modal"
+                  aria-label="Hapus percakapan" title="Hapus percakapan"><i class="bi bi-trash3"></i></button>
+        </div>
       </header>
 
       {% if active.item_name %}
-      <div class="m-4 rounded-xl bg-[#EFE5D8] p-3 text-sm">
-        <p class="text-xs uppercase tracking-wide text-gray-500">Item yang dibicarakan</p>
-        <p class="font-semibold">{{ active.item_name }}</p>
+      <div class="mx-4 mt-4 flex items-center gap-3 rounded-xl bg-[#EFE5D8] p-3 md:mx-6">
+        <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[#D9C7AF] text-xl text-[#344536]"><i class="bi bi-handbag"></i></div>
+        <div class="min-w-0 flex-1">
+          <p class="text-[10px] uppercase tracking-widest text-gray-500">Item yang dibicarakan</p>
+          <p class="truncate font-semibold">{{ active.item_name }}</p>
+        </div>
       </div>
       {% endif %}
 
-      <div id="messages" class="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-4"
-          hx-get="{% url 'chat:messages' active.id %}"
-          hx-trigger="every 3s [!document.querySelector('.editing')]"
-          hx-swap="innerHTML">
+      <div id="messages" class="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 md:px-6"
+           hx-get="{% url 'chat:messages' active.id %}"
+           hx-trigger="every 3s [!document.querySelector('.editing') && document.visibilityState === 'visible']"
+           hx-swap="innerHTML">
         {% include 'chat/_messages.html' %}
       </div>
 
-      <form id="message-form" class="flex gap-2 border-t bg-white p-4"
-            hx-post="{% url 'chat:send' active.id %}"
-            hx-target="#messages" hx-swap="innerHTML">
-        <input name="content" placeholder="Tulis pesan..." autocomplete="off" required
-              class="flex-1 rounded-xl border px-4 py-3">
-        <button class="rounded-xl bg-[#344536] px-5 py-3 text-white">Kirim</button>
+      <form id="attach-form" class="hidden"
+            hx-post="{% url 'chat:send_attachment' active.id %}"
+            hx-encoding="multipart/form-data"
+            hx-trigger="change"
+            hx-target="#messages" hx-swap="innerHTML"
+            hx-on::after-request="this.reset()"
+            data-max-image="{{ max_image_bytes }}" data-max-doc="{{ max_doc_bytes }}">
+        <input id="attach-input" type="file" name="file">
       </form>
+      <div id="upload-status" class="hidden bg-white px-4 pt-2 text-sm text-gray-600">
+        <div class="flex items-center justify-between gap-3">
+          <span id="upload-name" class="truncate"></span>
+          <span id="upload-pct">0%</span>
+        </div>
+        <div class="mt-1 h-1.5 overflow-hidden rounded bg-gray-200">
+          <div id="upload-bar" class="h-full bg-[#344536] transition-all" style="width:0%"></div>
+        </div>
+      </div>
 
-      {% elif new_users is not None %}
-        <div class="flex min-h-0 flex-1 flex-col p-6">
-          <h2 class="font-serif text-2xl">Pesan baru</h2>
-          <form method="get" class="my-4 flex gap-2">
-            <input type="hidden" name="new" value="1">
-            <input name="q" value="{{ request.GET.q }}" placeholder="Cari username"
-                  class="flex-1 rounded-xl border border-gray-200 px-4 py-2">
-            <button class="rounded-xl border border-[#344536] px-4 py-2">Cari</button>
-          </form>
-          <div class="min-h-0 flex-1 space-y-2 overflow-y-auto">
-            {% for u in new_users %}
-            <form method="post" action="{% url 'chat:start' u.id %}"
-                  class="flex items-center justify-between rounded-xl bg-white p-3">
-              {% csrf_token %}
-              <span class="font-semibold">{{ u.username }}</span>
-              <button class="rounded-lg bg-[#344536] px-4 py-2 text-white">Chat</button>
-            </form>
-            {% empty %}
-            <p class="text-gray-500">Tidak ada user ditemukan</p>
-            {% endfor %}
-          </div>
-        </div>      
+      <div class="border-t border-[#E8E0D0] bg-white p-3 md:p-4">
+        <form id="message-form" class="flex items-end gap-2"
+              hx-post="{% url 'chat:send' active.id %}"
+              hx-target="#messages" hx-swap="innerHTML">
+          <details id="attach-menu" class="relative">
+            <summary class="icon-btn" aria-label="Lampirkan"><i class="bi bi-plus-lg"></i></summary>
+            <div class="absolute bottom-12 left-0 z-20 w-44 rounded-xl border border-[#E8E0D0] bg-white p-1 shadow-lg">
+              <button type="button" data-accept="image/*" class="upload-btn menu-item"><i class="bi bi-image"></i> Foto</button>
+              <button type="button" data-accept="image/*" data-capture="environment" class="upload-btn menu-item"><i class="bi bi-camera"></i> Kamera</button>
+              <button type="button" data-accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt" class="upload-btn menu-item"><i class="bi bi-paperclip"></i> Dokumen</button>
+              <button type="button" popovertarget="location-modal" class="menu-item"><i class="bi bi-geo-alt"></i> Lokasi</button>
+            </div>
+          </details>
+          <textarea name="content" rows="1" maxlength="2000" required placeholder="Tulis pesan..."
+                    class="max-h-32 min-w-0 flex-1 resize-none rounded-2xl border border-[#E8E0D0] bg-[#F8F3E9] px-4 py-2.5 text-base leading-snug"></textarea>
+          <button class="send-btn" aria-label="Kirim"><i class="bi bi-send-fill"></i></button>
+        </form>
+        <p id="char-count" class="mt-1 text-right text-xs text-gray-500" hidden></p>
+      </div>
     {% else %}
-      <div class="flex flex-1 items-center justify-center text-gray-500">
-        Pilih percakapan di sebelah kiri
+      <div class="flex flex-1 flex-col items-center justify-center gap-2 text-gray-500">
+        <i class="bi bi-chat-dots text-4xl text-[#344536]"></i>
+        <p>Pilih percakapan atau mulai pesan baru</p>
       </div>
     {% endif %}
   </section>
+
+  {% include 'chat/components/new_chat_modal.html' %}
+  {% if active %}
+    {% include 'chat/components/confirm_modal.html' %}
+    {% include 'chat/components/location_modal.html' %}
+    {% include 'chat/components/delete_conversation_modal.html' %}
+  {% endif %}
 </div>
 {% endblock %}
 
 {% block extra_js %}
-<script>
-  const box = document.getElementById('messages');
-  const form = document.getElementById('message-form');
-  let stick = true;
-  const toBottom = () => { box.scrollTop = box.scrollHeight; };
-
-  if (box && form) {
-    toBottom();
-    window.addEventListener('load', () => setTimeout(toBottom, 100));
-    box.addEventListener('scroll', () => {
-      stick = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
-    });
-    form.addEventListener('submit', () => { stick = true; });
-    form.addEventListener('htmx:afterRequest', (e) => {
-      if (e.detail.successful) form.reset();
-    });
-    document.body.addEventListener('htmx:afterSwap', (e) => {
-      if (e.target === box && stick) toBottom();
-    });
-  }
-</script>
+<script src="{% static 'chat/js/toast.js' %}"></script>
+<script src="{% static 'chat/js/chat.js' %}"></script>
 {% endblock %}
