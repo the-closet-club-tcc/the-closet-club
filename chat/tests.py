@@ -291,11 +291,6 @@ class StartConversationTests(ChatTestBase):
         self.login(self.burhania)
         self.assertEqual(self.client.get(reverse('chat:start', args=[self.amelia.id])).status_code, 405)
 
-    def test_new_chat_user_list_excludes_self_and_filters(self):
-        self.login(self.burhania)
-        resp = self.client.get(reverse('chat:index'), {'new': '1', 'q': 'amel'})
-        self.assertEqual([u.username for u in resp.context['new_users']], ['amelia'])
-
 class LocationTests(ChatTestBase):
     def test_place_search_uses_osm(self):
         fake = [{'name': 'Stasiun Depok Baru', 'address': 'Jl. Margonda Raya, Depok',
@@ -568,4 +563,85 @@ class AttachmentTests(ChatTestBase):
         self.assertEqual(msg.message_type, 'image')
         self.assertEqual(msg.attachment_type, 'image/jpeg')
         saved = Image.open(io.BytesIO(bytes(msg.attachment.data)))
-        self.assertLessEqual(max(saved.size), 1280)                
+        self.assertLessEqual(max(saved.size), 1280)
+
+class UserSearchTests(ChatTestBase):
+    def test_excludes_self_and_filters(self):
+        self.login(self.burhania)
+        resp = self.client.get(reverse('chat:user_search'), {'q': 'amel'})
+        self.assertEqual([u.username for u in resp.context['new_users']], ['amelia'])
+        resp = self.client.get(reverse('chat:user_search'))
+        names = [u.username for u in resp.context['new_users']]
+        self.assertNotIn('burhania', names)
+        self.assertIn('faizy', names)
+
+    def test_no_match_message(self):
+        self.login(self.burhania)
+        resp = self.client.get(reverse('chat:user_search'), {'q': 'zzzz'})
+        self.assertContains(resp, 'Tidak ada pengguna dengan nama itu')
+
+    def test_requires_login(self):
+        self.assertEqual(self.client.get(reverse('chat:user_search')).status_code, 302)
+
+
+class ConversationListPartialTests(ChatTestBase):
+    def test_partial_shows_own_conversations(self):
+        self.login(self.burhania)
+        resp = self.client.get(reverse('chat:conversation_list'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertTemplateUsed(resp, 'chat/_conversation_list.html')
+        self.assertContains(resp, 'amelia')
+
+    def test_active_conversation_has_no_unread_badge(self):
+        self.login(self.burhania)
+        resp = self.client.get(reverse('chat:conversation_list'), {'active': self.conv.id})
+        self.assertEqual(resp.context['conversations'][0]['unread'], 0)
+        resp = self.client.get(reverse('chat:conversation_list'))
+        self.assertEqual(resp.context['conversations'][0]['unread'], 1)
+
+    def test_requires_login(self):
+        self.assertEqual(self.client.get(reverse('chat:conversation_list')).status_code, 302)
+
+
+class DeleteConversationTests(ChatTestBase):
+    def test_delete_hides_conversation_for_that_user_only(self):
+        self.login(self.burhania)
+        resp = self.client.post(reverse('chat:delete_conversation', args=[self.conv.id]))
+        self.assertRedirects(resp, reverse('chat:index') + '?deleted=1')
+        self.assertEqual(self.client.get(reverse('chat:index')).context['conversations'], [])
+        self.client.logout()
+        self.login(self.amelia)
+        self.assertEqual(len(self.client.get(reverse('chat:index')).context['conversations']), 1)
+        self.assertEqual(self.conv.messages.count(), 2)
+
+    def test_conversation_returns_with_only_new_messages(self):
+        self.login(self.burhania)
+        self.client.post(reverse('chat:delete_conversation', args=[self.conv.id]))
+        Message.objects.create(conversation=self.conv, sender=self.amelia, content='Halo lagi')
+        resp = self.client.get(reverse('chat:room', args=[self.conv.id]))
+        self.assertEqual([m.content for m in resp.context['chat_messages']], ['Halo lagi'])
+        self.assertEqual(len(resp.context['conversations']), 1)
+
+    def test_non_participant_gets_404(self):
+        self.login(self.faizy)
+        resp = self.client.post(reverse('chat:delete_conversation', args=[self.conv.id]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_requires_post(self):
+        self.login(self.burhania)
+        resp = self.client.get(reverse('chat:delete_conversation', args=[self.conv.id]))
+        self.assertEqual(resp.status_code, 405)
+
+
+class MessageLimitTests(ChatTestBase):
+    def test_only_latest_200_messages_are_shown(self):
+        Message.objects.bulk_create([
+            Message(conversation=self.conv, sender=self.amelia, content=f'pesan {i}')
+            for i in range(250)
+        ])
+        self.login(self.burhania)
+        resp = self.client.get(reverse('chat:room', args=[self.conv.id]))
+        shown = resp.context['chat_messages']
+        self.assertEqual(len(shown), 200)
+        self.assertEqual(shown[0].content, 'pesan 50')
+        self.assertEqual(shown[-1].content, 'pesan 249')        
