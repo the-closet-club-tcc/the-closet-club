@@ -1,0 +1,18 @@
+<article class="post-card">
+    <a href="{{ post.get_absolute_url }}" class="post-card-image">
+        <img src="{{ post.image.url }}" alt="Outfit by {{ post.author.username }}" loading="lazy">
+    </a>
+    <div class="post-card-body">
+        <p class="post-card-caption">{{ post.caption|default:"Untitled outfit"|truncatechars:60 }}</p>
+        <div class="post-card-meta">
+            <a href="{{ post.get_absolute_url }}" class="post-card-author">
+                @{{ post.author.username }}
+                {% if post.author.is_verified %}<i class="bi bi-patch-check-fill verified" title="Verified"></i>{% endif %}
+            </a>
+            <span class="post-card-stats">
+                <i class="bi bi-heart"></i> {{ post.like_count }}
+                <i class="bi bi-bag"></i> {{ post.clothes.all|length }}
+            </span>
+        </div>
+    </div>
+</article>

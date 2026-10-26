@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Post an outfit · The Closet Club{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/feed.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="feed-page">
+    <a href="{% url 'feed:index' %}" class="back-link"><i class="bi bi-arrow-left"></i> Back to feed</a>
+
+    <form method="post" enctype="multipart/form-data" class="post-form">
+        {% csrf_token %}
+        <h1>Post an outfit</h1>
+
+        {{ form.non_field_errors }}
+
+        <div class="field">
+            <label for="{{ form.image.id_for_label }}">{{ form.image.label }}</label>
+            {{ form.image }}
+            {{ form.image.errors }}
+        </div>
+
+        <div class="field">
+            <label for="{{ form.caption.id_for_label }}">Caption</label>
+            {{ form.caption }}
+            {{ form.caption.errors }}
+        </div>
+
+        <div class="field">
+            <span class="field-label">{{ form.clothes.label }}</span>
+            {% if has_clothes %}
+                <div class="clothes-picker">{{ form.clothes }}</div>
+            {% else %}
+                <p class="muted">You haven't added any clothes yet. Add items to My Closet first, then tag them here.</p>
+            {% endif %}
+            {{ form.clothes.errors }}
+        </div>
+
+        <button type="submit" class="btn btn-dark">Share outfit</button>
+    </form>
+</div>
+{% endblock %}
