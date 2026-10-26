@@ -1,0 +1,13 @@
+{% for u in new_users %}
+<form method="post" action="{% url 'chat:start' u.id %}"
+      class="flex items-center justify-between gap-3 rounded-xl bg-white p-3">
+  {% csrf_token %}
+  <span class="flex min-w-0 items-center gap-3">
+    {% include 'chat/components/avatar.html' with person=u size=40 %}
+    <span class="truncate font-semibold">{{ u.username }}</span>
+  </span>
+  <button class="btn btn-primary">Chat</button>
+</form>
+{% empty %}
+<p class="text-sm text-gray-500">{% if q %}Tidak ada pengguna dengan nama itu{% else %}Belum ada pengguna lain{% endif %}</p>
+{% endfor %}
