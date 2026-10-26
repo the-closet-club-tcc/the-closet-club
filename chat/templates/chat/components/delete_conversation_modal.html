@@ -1,0 +1,19 @@
+<div id="delete-conv-modal" class="chat-modal" popover="auto" role="dialog"
+     aria-modal="true" aria-labelledby="delete-conv-modal-title">
+  <button type="button" class="chat-modal__backdrop"
+          popovertarget="delete-conv-modal" popovertargetaction="hide"
+          aria-label="Tutup konfirmasi"></button>
+  <div class="chat-modal__content">
+    <button type="button" class="chat-modal__close"
+            popovertarget="delete-conv-modal" popovertargetaction="hide"
+            aria-label="Tutup konfirmasi">×</button>
+    <h2 id="delete-conv-modal-title">Hapus percakapan?</h2>
+    <p>Percakapan dengan {{ other_user.username }} dihapus dari daftarmu saja. {{ other_user.username }} tetap melihatnya di sisinya, dan percakapan muncul lagi kalau ada pesan baru (hanya pesan baru yang terlihat).</p>
+    <form method="post" action="{% url 'chat:delete_conversation' active.id %}" class="chat-modal__actions">
+      {% csrf_token %}
+      <button type="button" class="btn btn-secondary"
+              popovertarget="delete-conv-modal" popovertargetaction="hide">Batal</button>
+      <button class="btn btn-danger">Ya, hapus</button>
+    </form>
+  </div>
+</div>
