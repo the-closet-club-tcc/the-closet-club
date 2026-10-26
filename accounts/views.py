@@ -1,12 +1,13 @@
 from django.contrib import messages
-from django.contrib.auth import login, logout
+from django.contrib.auth import login, logout, get_user_model
 from django.contrib.auth.forms import AuthenticationForm
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
-from .forms import CustomUserCreationForm
+from .forms import CustomUserCreationForm, EditProfileForm
 
+User = get_user_model()
 
 def register(request):
     form = CustomUserCreationForm(
@@ -70,4 +71,35 @@ def profile(request):
         "user_profile": user
     }
 
+    return render(request, "accounts/profile.html", context)
+
+
+@login_required(login_url="login")
+def edit_profile(request):
+    if request.method == "POST":
+        form = EditProfileForm(
+            request.POST,
+            request.FILES,
+            instance=request.user
+        )
+
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Profil berhasil diperbarui!")
+            return redirect("profile")
+
+    else:
+        form = EditProfileForm(instance=request.user)
+
+    context = {
+        "form": form
+    }
+
+    return render(request, "accounts/edit_profile.html", context)
+
+def public_profile(request, username):
+    user_profile = get_object_or_404(User, username=username)
+    context={
+        "user_profile": user_profile
+    }
     return render(request, "accounts/profile.html", context)

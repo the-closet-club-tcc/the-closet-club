@@ -36,9 +36,19 @@
             <a href="#">Contact</a>
 
             {% if user.is_authenticated %}
-                <span class="nav-user">
-                    {{user.username }}
-                </span>
+                <a href="{% url 'profile' %}"
+                class="nav-avatar-link"
+                title="My Profile"
+                aria-label="My Profile">
+
+                {% if user.foto_profil %}
+                    <img src="{{ user.foto_profil.url }}" alt="Foto profil" class="nav-avatar-image">
+                {% else %}
+                    <span class="nav-avatar-initial">
+                        {{ user.username|first|upper }}
+                    </span>
+                {% endif %}
+                </a>
 
                 <!-- menggunakan form karena diviews.py kita menggunakan @require_POST -->
                 <form method="POST" action="{% url 'logout' %}">

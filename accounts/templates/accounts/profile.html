@@ -1,0 +1,165 @@
+
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}My Profile | The Closet Club{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/profile.css' %}">
+{% endblock %}
+
+{% block content %}
+
+<section class="profile-page">
+    <div class="profile-container">
+
+        <!-- header -->
+        <div class="profile-header">
+
+            <!-- foto profil -->
+            <div class="profile-avatar">
+                {% if user_profile.foto_profil %}
+                    <img
+                        src="{{ user_profile.foto_profil.url }}"
+                        alt="Foto profil {{ user_profile.username }}"
+                    >
+                {% else %}
+                    <span>
+                        {{ user_profile.username|first|upper }}
+                    </span>
+                {% endif %}
+            </div>
+
+            <!-- informasi user -->
+            <div class="profile-info">
+
+                <div class="profile-name-row">
+                    <h1>
+                        {% if user_profile.get_full_name %}
+                            {{ user_profile.get_full_name }}
+                        {% else %}
+                            {{ user_profile.username }}
+                        {% endif %}
+                    </h1>
+
+                    {% if user_profile.is_verified %}
+                        <span class="profile-verified">
+                            ✓ Verified
+                        </span>
+                    {% endif %}
+                </div>
+
+                <p class="profile-username">
+                    @{{ user_profile.username }}
+                </p>
+
+                <p class="profile-bio">
+                    {{ user_profile.bio|default:"No bio yet." }}
+                </p>
+
+                <div class="profile-meta">
+
+                    <!-- rating -->
+                    <div class="profile-rating">
+                        {% if user_profile.reviews_received.count %}
+                            <span>
+                                ★ {{ user_profile.get_rata_rata_rating }} / 5
+                            </span>
+
+                            <span>
+                                ({{ user_profile.reviews_received.count }} reviews)
+                            </span>
+                        {% else %}
+                            <span>☆ No reviews yet</span>
+                        {% endif %}
+                    </div>
+
+                    <!-- lokasi -->
+                    {% if user_profile.lokasi %}
+                        <span class="profile-location">
+                            {{ user_profile.lokasi }}
+                        </span>
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+            <!-- tombol edit profile -->
+            {% if user == user_profile %}
+                <a
+                    href="{% url 'edit_profile' %}"
+                    class="profile-edit-btn">
+                    Edit Profile
+                </a>
+            {% endif %}
+
+        </div>
+
+        <!-- closet -->
+        <section class="profile-closet">
+            <div class="profile-section-heading">
+                <h2>
+                    {% if user == user_profile %}
+                        My Closet
+                    {% else %}
+                        {{ user_profile.username }}'s Closet
+                    {% endif %}
+                </h2>
+                <p>
+                    Discover the clothes waiting for a new home.
+                </p>
+            </div>
+
+            <!-- nanti akan diintegrasikan dengan closet(modul 3) -->
+            <div class="profile-closet-content">
+
+                <p class="profile-empty">
+                    Your clothing collection will appear here.
+                </p>
+
+            </div>
+
+        </section>
+
+        <!-- review -->
+        <section class="profile-reviews">
+
+            <div class="profile-section-heading">
+                <h2>Reviews</h2>
+                <p>What other members say about you.</p>
+            </div>
+
+            {% for review in user_profile.reviews_received.all %}
+
+                <div class="profile-review-card">
+                    <div class="profile-review-header">
+                        <strong>
+                            {{ review.pemberi_review.username }}
+                        </strong>
+
+                        <span>
+                            ★ {{ review.rating }} / 5
+                        </span>
+                    </div>
+
+                    <p>{{ review.komentar|default:"No comment." }}</p>
+
+                    <small>
+                        {{ review.tanggal|date:"d F Y" }}
+                    </small>
+                </div>
+
+            {% empty %}
+
+                <p class="profile-empty">
+                    No reviews yet.
+                </p>
+            {% endfor %}
+
+        </section>
+
+    </div>
+</section>
+
+{% endblock %}

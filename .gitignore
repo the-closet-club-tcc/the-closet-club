@@ -15,7 +15,7 @@ __pycache__/
 .vscode/*
 !.vscode/settings.json
 .idea/
-.coverage
 
-# Virtual env
-/the-closet-club/
+# Django uploaded files
+/media/
+/profile_pics/

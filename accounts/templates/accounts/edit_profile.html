@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Edit Profile | The Closet Club{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/edit_profile.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="edit-profile-page">
+    <div class="edit-profile-container">
+        <div class="profile-shell">
+            <!-- cover -->
+            <div class="profile-cover"></div>
+            <!-- header info -->
+            <div class="profile-header">
+                <div class="profile-avatar-wrapper">
+                    {% if user.foto_profil %}
+                        <img
+                            src="{{ user.foto_profil.url }}"
+                            alt="Foto profil"
+                            class="profile-avatar"
+                        >
+                    {% else %}
+                        <div class="profile-avatar profile-avatar-fallback">
+                            {{ user.username|first|upper }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="profile-info">
+                    <div class="edit-username-row">
+                        <p class="profile-username">@{{ user.username }}</p>
+                        {% if user.is_verified %}
+                            <span class="profile-badge">Verified Account</span>
+                        {% else %}
+                            <span class="profile-badge profile-badge-muted">Not Verified</span>
+                        {% endif %} 
+                    </div>
+                </div>
+
+                <div class="profile-header-action">
+                    <a href="{% url 'profile' %}" class="profile-view-btn">
+                        View profile
+                    </a>
+                </div>
+            </div>
+
+            <!-- body -->
+            <div class="profile-body">
+
+                <div class="profile-section-heading">
+                    <h2>Personal Information</h2>
+                    <p>Update your account details below.</p>
+                </div>
+
+                {% for message in messages %}
+                    <div class="form-message success-message">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+
+                {% for error in form.non_field_errors %}
+                    <div class="form-message error-message">
+                        {{ error }}
+                    </div>
+                {% endfor %}
+
+                <form method="POST" enctype="multipart/form-data" class="profile-form">
+                    {% csrf_token %}
+
+                    {% for field in form %}
+                        <div class="form-group {% if field.name == 'email' or field.name == 'bio' or field.name == 'foto_profil' %}form-group-full{% endif %}">
+                            <label for="{{ field.id_for_label }}">
+                                {{ field.label }}
+                            </label>
+
+                            {{ field }}
+
+                            {% if field.help_text %}
+                                <small class="field-help">
+                                    {{ field.help_text }}
+                                </small>
+                            {% endif %}
+
+                            {% for error in field.errors %}
+                                <small class="field-error">
+                                    {{ error }}
+                                </small>
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+
+                    <div class="form-actions">
+                        <a href="{% url 'profile' %}" class="btn-cancel">
+                            Cancel
+                        </a>
+
+                        <button type="submit" class="btn-save">
+                            Save Changes
+                        </button>
+                    </div>
+                </form>
+
+            </div>
+        </div>
+
+    </div>
+</section>
+{% endblock %}
