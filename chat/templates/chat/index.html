@@ -34,7 +34,7 @@
       <label class="relative block">
         <i class="bi bi-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
         <input id="conv-search" type="search" placeholder="Cari percakapan" autocomplete="off"
-               class="w-full rounded-xl border border-[#E8E0D0] bg-white py-2 pl-9 pr-3 text-sm">
+               class="w-full rounded-xl border border-[#E8E0D0] bg-white py-2 pl-9 pr-3 text-base md:text-sm">
       </label>
     </div>
     <div class="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
@@ -154,8 +154,8 @@
         <form method="get" class="my-4 flex gap-2">
           <input type="hidden" name="new" value="1">
           <input name="q" value="{{ request.GET.q }}" placeholder="Cari username"
-                 class="min-w-0 flex-1 rounded-xl border border-[#E8E0D0] bg-white px-4 py-2 text-sm">
-          <button class="rounded-xl border border-[#344536] px-4 py-2 text-sm">Cari</button>
+                 class="min-w-0 flex-1 rounded-xl border border-[#E8E0D0] bg-white px-4 py-2 text-base md:text-sm">
+          <button class="btn btn-secondary">Cari</button>
         </form>
         <div class="min-h-0 flex-1 space-y-2 overflow-y-auto">
           {% for u in new_users %}
@@ -166,7 +166,7 @@
               {% include 'chat/components/avatar.html' with person=u size=40 %}
               <span class="truncate font-semibold">{{ u.username }}</span>
             </span>
-            <button class="rounded-lg bg-[#344536] px-4 py-2 text-sm text-white">Chat</button>
+            <button class="btn btn-primary">Chat</button>
           </form>
           {% empty %}
           <p class="text-gray-500">Tidak ada user ditemukan</p>
