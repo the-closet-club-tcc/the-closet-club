@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Outfit by {{ post.author.username }} | The Closet Club{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/feed.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="feed-page">
+    <a href="{% url 'feed:index' %}" class="back-link"><i class="bi bi-arrow-left"></i> Back to feed</a>
+
+    <div class="detail">
+        <div class="detail-photo">
+            <img src="{{ post.image.url }}" alt="Outfit by {{ post.author.username }}">
+        </div>
+
+        <div class="detail-info">
+            <div class="author-row">
+                {% if post.author.foto_profil %}
+                    <img class="avatar" src="{{ post.author.foto_profil.url }}" alt="">
+                {% else %}
+                    <span class="avatar avatar-fallback">{{ post.author.username|slice:":1"|upper }}</span>
+                {% endif %}
+                <div>
+                    <strong>@{{ post.author.username }}</strong>
+                    {% if post.author.is_verified %}<i class="bi bi-patch-check-fill verified" title="Verified"></i>{% endif %}
+                    <div class="muted">{{ post.created_at|date:"j M Y" }}</div>
+                </div>
+            </div>
+
+            {% if post.caption %}<p class="detail-caption">{{ post.caption|linebreaksbr }}</p>{% endif %}
+
+            <div class="detail-actions">
+                {% if user.is_authenticated %}
+                <form method="post" action="{% url 'feed:like' post.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-ghost like-btn {% if liked %}is-liked{% endif %}">
+                        <i class="bi {% if liked %}bi-heart-fill{% else %}bi-heart{% endif %}"></i> {{ like_count }}
+                    </button>
+                </form>
+                {% else %}
+                <a href="{% url 'login' %}?next={{ request.path }}" class="btn btn-ghost">
+                    <i class="bi bi-heart"></i> {{ like_count }}
+                </a>
+                {% endif %}
+
+                {% if is_author %}
+                <form method="post" action="{% url 'feed:delete' post.pk %}"
+                      onsubmit="return confirm('Delete this outfit post?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-ghost btn-danger"><i class="bi bi-trash"></i> Delete</button>
+                </form>
+                {% endif %}
+            </div>
+
+            <h2 class="detail-heading">Items in this outfit</h2>
+            {% if post.clothes.all %}
+            <ul class="tagged-list">
+                {% for item in post.clothes.all %}
+                <li class="tagged-item">
+                    {# Personal items are private in My Closet, so only link to items that are visible #}
+                    {% if item.is_offered or is_author %}
+                    <a href="{{ item.get_absolute_url }}" class="tagged-thumb"><img src="{{ item.photo.url }}" alt="{{ item.name }}"></a>
+                    {% else %}
+                    <span class="tagged-thumb"><img src="{{ item.photo.url }}" alt="{{ item.name }}"></span>
+                    {% endif %}
+
+                    <div class="tagged-text">
+                        {% if item.is_offered or is_author %}
+                        <a href="{{ item.get_absolute_url }}"><strong>{{ item.name }}</strong></a>
+                        {% else %}
+                        <strong>{{ item.name }}</strong>
+                        {% endif %}
+                        <span class="muted">Size {{ item.get_size_display }} &middot; {{ item.get_condition_display }}</span>
+                        <span class="status status-{{ item.status }}">{{ item.get_status_display }}</span>
+                    </div>
+
+                    {% if item.is_offered and not is_author %}
+                        {% if user.is_authenticated %}
+                        {# Hands off to Chat: opens (or reuses) a conversation about this item #}
+                        <form method="post" action="{% url 'chat:start' post.author.pk %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="item_id" value="{{ item.pk }}">
+                            <input type="hidden" name="item_name" value="{{ item.name }}">
+                            <button type="submit" class="btn btn-dark">Interested</button>
+                        </form>
+                        {% else %}
+                        <a href="{% url 'login' %}?next={{ request.path }}" class="btn btn-dark">Interested</a>
+                        {% endif %}
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            {% if not is_author %}
+            <p class="closet-link">
+                <a href="{% url 'closet:user_closet' post.author.username %}">See everything @{{ post.author.username }} has on offer <i class="bi bi-arrow-right"></i></a>
+            </p>
+            {% endif %}
+            {% else %}
+            <p class="muted">No items were tagged in this post.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
