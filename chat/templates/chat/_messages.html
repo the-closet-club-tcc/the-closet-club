@@ -36,12 +36,26 @@
           </span>
         </a>
       {% else %}
+        {% if m.has_reply %}
+        <div class="mb-1 rounded-xl border-l-4 border-[#344536] bg-white/70 px-3 py-1.5 text-xs">
+          {% if m.reply_to %}
+            <p class="font-semibold text-[#344536]">{% if m.reply_to.sender_id == request.user.id %}Kamu{% else %}{{ m.reply_to.sender.username }}{% endif %}</p>
+            <p class="truncate text-gray-600">{{ m.reply_to.preview_text }}</p>
+          {% else %}
+            <p class="italic text-gray-500">Pesan asli tidak tersedia</p>
+          {% endif %}
+        </div>
+        {% endif %}
         <div class="whitespace-pre-wrap break-words rounded-2xl px-4 py-2 {% if m.sender_id == request.user.id %}rounded-br-md bg-[#344536] text-white{% else %}rounded-bl-md bg-[#D9C7AF]{% endif %}">{{ m.content }}</div>
       {% endif %}
 
       <div class="mt-1 flex items-center gap-2 text-xs text-gray-500 {% if m.sender_id == request.user.id %}justify-end{% endif %}">
-        {% if m.sender_id == request.user.id %}
-          <span class="msg-actions transition md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
+        <span class="msg-actions transition md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
+          <button type="button" class="msg-action"
+                  data-reply-id="{{ m.id }}"
+                  data-reply-who="{% if m.sender_id == request.user.id %}Kamu{% else %}{{ m.sender.username }}{% endif %}"
+                  data-reply-text="{{ m.preview_text|truncatechars:80 }}"><i class="bi bi-reply"></i> Balas</button>
+          {% if m.sender_id == request.user.id %}
             {% if m.message_type == 'text' %}
             <button type="button" class="msg-action"
                     hx-get="{% url 'chat:edit' m.id %}"
@@ -49,8 +63,8 @@
             {% endif %}
             <button type="button" class="msg-action msg-action--danger"
                     data-confirm-url="{% url 'chat:delete' m.id %}"><i class="bi bi-trash3"></i> Hapus</button>
-          </span>
-        {% endif %}
+          {% endif %}
+        </span>
         <span>{{ m.created_at|time:"H:i" }}{% if m.is_edited %} · diedit{% endif %}</span>
         {% if m.sender_id == request.user.id %}
           {% if m.is_read %}<i class="bi bi-check2-all text-[#344536]" title="Dibaca"></i>{% else %}<i class="bi bi-check2 text-gray-400" title="Terkirim"></i>{% endif %}
