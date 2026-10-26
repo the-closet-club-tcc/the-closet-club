@@ -41,14 +41,14 @@
 
       <div class="mt-1 flex items-center gap-2 text-xs text-gray-500 {% if m.sender_id == request.user.id %}justify-end{% endif %}">
         {% if m.sender_id == request.user.id %}
-          <span class="flex gap-2 transition md:opacity-0 md:group-hover:opacity-100">
+          <span class="msg-actions transition md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
             {% if m.message_type == 'text' %}
-            <button type="button" hx-get="{% url 'chat:edit' m.id %}"
-                    hx-target="closest .msg" hx-swap="outerHTML"
-                    class="underline">Edit</button>
+            <button type="button" class="msg-action"
+                    hx-get="{% url 'chat:edit' m.id %}"
+                    hx-target="closest .msg" hx-swap="outerHTML"><i class="bi bi-pencil"></i> Edit</button>
             {% endif %}
-            <button type="button" data-confirm-url="{% url 'chat:delete' m.id %}"
-                    class="underline text-red-700">Hapus</button>
+            <button type="button" class="msg-action msg-action--danger"
+                    data-confirm-url="{% url 'chat:delete' m.id %}"><i class="bi bi-trash3"></i> Hapus</button>
           </span>
         {% endif %}
         <span>{{ m.created_at|time:"H:i" }}{% if m.is_edited %} · diedit{% endif %}</span>
