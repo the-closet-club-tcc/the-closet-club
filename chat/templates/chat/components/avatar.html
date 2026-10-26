@@ -1,5 +1,4 @@
-<span class="relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#D9C7AF] text-sm font-semibold text-[#344536]"
-      style="width:{{ size|default:44 }}px;height:{{ size|default:44 }}px">
+<span class="relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#D9C7AF] text-sm font-semibold text-[#344536] {% if size == 48 %}h-12 w-12{% elif size == 40 %}h-10 w-10{% else %}h-11 w-11{% endif %}">
   {{ person.username|slice:":1"|upper }}
   {% if person.foto_profil %}
     <img src="{{ person.foto_profil.url }}" alt="" class="absolute inset-0 h-full w-full object-cover" onerror="this.remove()">
