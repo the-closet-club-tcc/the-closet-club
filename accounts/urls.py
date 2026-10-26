@@ -5,7 +5,8 @@ from .views import (
     login_user, 
     logout_view,profile, 
     edit_profile,
-    public_profile
+    public_profile,
+    request_verification,
 )
 
 urlpatterns = [
@@ -14,5 +15,6 @@ urlpatterns = [
     path("logout/", logout_view, name="logout"),
     path("profile/", profile, name="profile"),
     path("edit-profile/", edit_profile, name="edit_profile"),
-    path("user/<str:username>/", public_profile, name="public_profile")
+    path("user/<str:username>/", public_profile, name="public_profile"),
+    path("request-verification/", request_verification, name="request_verification"),
 ]
