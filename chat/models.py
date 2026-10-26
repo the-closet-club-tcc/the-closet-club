@@ -69,7 +69,21 @@ class Message(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     attachment_name = models.CharField(max_length=255, blank=True)
     attachment_type = models.CharField(max_length=100, blank=True)
-    attachment_size = models.PositiveIntegerField(default=0)    
+    attachment_size = models.PositiveIntegerField(default=0)
+
+    reply_to = models.ForeignKey(
+        'self', null=True, blank=True, on_delete=models.SET_NULL, related_name='replies',
+    )
+    has_reply = models.BooleanField(default=False)
+
+    def preview_text(self):
+        if self.message_type == self.MessageType.LOCATION:
+            return f'Lokasi: {self.place_name}'
+        if self.message_type == self.MessageType.IMAGE:
+            return 'Foto'
+        if self.message_type == self.MessageType.FILE:
+            return f'Dokumen: {self.attachment_name}'
+        return self.content    
 
     class Meta:
         ordering = ['created_at']
