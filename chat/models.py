@@ -1,7 +1,6 @@
 from django.conf import settings
 from django.db import models
 
-
 class Conversation(models.Model):
     user1 = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
@@ -16,6 +15,19 @@ class Conversation(models.Model):
     item_name = models.CharField(max_length=150, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    cleared_at_user1 = models.DateTimeField(null=True, blank=True)
+    cleared_at_user2 = models.DateTimeField(null=True, blank=True)
+
+    def cleared_at_for(self, user):
+        return self.cleared_at_user1 if user.pk == self.user1_id else self.cleared_at_user2
+
+    def visible_messages(self, user):
+        """Pesan yang masih terlihat oleh user (setelah ia menghapus percakapan)."""
+        qs = self.messages.all()
+        cleared = self.cleared_at_for(user)
+        if cleared:
+            qs = qs.filter(created_at__gt=cleared)
+        return qs    
 
     class Meta:
         ordering = ['-updated_at']
@@ -28,7 +40,6 @@ class Conversation(models.Model):
 
     def __str__(self):
         return f'{self.user1} - {self.user2}'
-
 
 class Message(models.Model):
     class MessageType(models.TextChoices):
