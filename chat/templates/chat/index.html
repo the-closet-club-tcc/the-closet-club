@@ -5,11 +5,15 @@
 {% block extra_head %}
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 <style type="text/tailwindcss">
+  @layer theme, base, components, utilities;
   @import "tailwindcss/theme.css" layer(theme);
-  @import "tailwindcss/utilities.css" layer(utilities);
+  @import "tailwindcss/utilities.css" layer(utilities) important;
   @theme {
     --font-sans: 'Work Sans', ui-sans-serif, system-ui, sans-serif;
     --font-serif: 'Gloock', ui-serif, Georgia, serif;
+  }
+  @layer base {
+    .chat-root a { color: inherit; text-decoration: none; }
   }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
@@ -23,7 +27,7 @@
   <!-- Kiri: daftar percakapan -->
   <aside class="{% if active or new_users is not None %}hidden md:flex{% else %}flex{% endif %} w-full shrink-0 flex-col border-r border-[#E8E0D0] md:w-80">
     <div class="flex items-center justify-between gap-2 px-5 pb-3 pt-5">
-      <h1 class="font-serif text-3xl leading-none">Pesan
+      <h1 class="font-serif text-3xl font-normal leading-none">Pesan
         <span class="ml-1 align-middle rounded-full bg-[#EFE5D8] px-2 py-0.5 font-sans text-xs font-semibold">{{ conversations|length }}</span>
       </h1>
       <a href="{% url 'chat:index' %}?new=1"
@@ -148,7 +152,7 @@
       <div class="flex min-h-0 flex-1 flex-col p-5 md:p-6">
         <div class="flex items-center gap-3">
           <a href="{% url 'chat:index' %}" class="md:hidden" aria-label="Kembali"><i class="bi bi-arrow-left text-xl"></i></a>
-          <h2 class="font-serif text-2xl">Pesan baru</h2>
+          <h2 class="font-serif text-2xl font-normal">Pesan baru</h2>
         </div>
         <form method="get" class="my-4 flex gap-2">
           <input type="hidden" name="new" value="1">
