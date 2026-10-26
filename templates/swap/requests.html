@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Swap requests | The Closet Club{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/swap.css' %}?v=15">
+{% endblock %}
+
+{% block content %}
+<section class="swap-page">
+    <div class="swap-container">
+        <header class="swap-header">
+            <h1>Swap requests</h1>
+            <p>Keep track of the pieces offered to you and the requests you've sent.</p>
+        </header>
+        {% include 'swap/_navigation.html' with active='requests' %}
+        <nav class="swap-filters" aria-label="Request direction">
+            <a href="{% url 'swap:requests_incoming' %}" {% if is_incoming %}aria-current="page"{% endif %}>Incoming</a>
+            <a href="{% url 'swap:requests_outgoing' %}" {% if not is_incoming %}aria-current="page"{% endif %}>Outgoing</a>
+        </nav>
+
+        {% for message in messages %}
+        <p class="swap-request-feedback" role="status">{{ message }}</p>
+        {% endfor %}
+
+        {% if swap_requests %}
+        <div class="swap-request-list">
+            {% for proposal in swap_requests %}
+            <article class="swap-request-card">
+                <header class="swap-request-heading">
+                    <div>
+                        <h2>{% if is_incoming %}From {{ proposal.sender.username }}{% else %}To {{ proposal.recipient.username }}{% endif %}</h2>
+                        <time datetime="{{ proposal.created_at|date:'c' }}">{{ proposal.created_at|date:'j M Y, H:i' }}</time>
+                    </div>
+                    <span class="swap-request-status">{{ proposal.get_status_display }}</span>
+                </header>
+                <div class="swap-request-pair">
+                    {% if is_incoming %}
+                    {% include 'swap/_request_item.html' with item=proposal.offered_item available=proposal.offered_available label='Their offer' only %}
+                    {% include 'swap/_request_item.html' with item=proposal.requested_item available=proposal.requested_available label='Your piece' only %}
+                    {% else %}
+                    {% include 'swap/_request_item.html' with item=proposal.offered_item available=proposal.offered_available label='Your offer' only %}
+                    {% include 'swap/_request_item.html' with item=proposal.requested_item available=proposal.requested_available label='Requested piece' only %}
+                    {% endif %}
+                </div>
+                {% if not proposal.offered_available or not proposal.requested_available %}
+                <p class="swap-request-note">One of these pieces is no longer available. This request cannot proceed with the current items.</p>
+                {% else %}
+                <p class="swap-request-note">Discuss the pieces, any top-up, and meeting arrangements in chat. This request is still pending; neither piece is reserved.</p>
+                {% endif %}
+                <div class="swap-request-actions">
+                    <form method="post" action="{% if is_incoming %}{% url 'chat:start' proposal.sender_id %}{% else %}{% url 'chat:start' proposal.recipient_id %}{% endif %}">
+                        {% csrf_token %}
+                        {% if proposal.requested_available %}
+                        <input type="hidden" name="item_id" value="{{ proposal.requested_item_id }}">
+                        <input type="hidden" name="item_name" value="{{ proposal.requested_item.name }}">
+                        {% endif %}
+                        <button type="submit" class="swap-primary">Chat with {% if is_incoming %}{{ proposal.sender.username }}{% else %}{{ proposal.recipient.username }}{% endif %}</button>
+                    </form>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="swap-saved-empty swap-finished">
+            <h2>{% if is_incoming %}No incoming requests yet{% else %}No outgoing requests yet{% endif %}</h2>
+            <p>{% if is_incoming %}Requests will appear here when someone offers a piece for yours.{% else %}Choose a saved piece and offer something from your closet to get started.{% endif %}</p>
+            <div class="swap-finished-actions">
+                {% if is_incoming %}
+                <a href="{% url 'closet:my_closet' %}">View My Closet &rarr;</a>
+                {% else %}
+                <a href="{% url 'swap:interested' %}">View interested items &rarr;</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

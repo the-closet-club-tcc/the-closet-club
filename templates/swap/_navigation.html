@@ -1,0 +1,5 @@
+<nav class="swap-navigation" aria-label="Swap pages">
+    <a href="{% url 'swap:index' %}" {% if active == 'discover' %}aria-current="page"{% endif %}>Discover</a>
+    <a href="{% url 'swap:interested' %}" {% if active == 'interested' %}aria-current="page"{% endif %}>Interested items</a>
+    <a href="{% url 'swap:requests_incoming' %}" {% if active == 'requests' %}aria-current="page"{% endif %}>Swap requests</a>
+</nav>
