@@ -1,11 +1,13 @@
 <div class="msg editing flex justify-end">
   <form hx-post="{% url 'chat:edit' m.id %}" hx-target="#messages" hx-swap="innerHTML"
-        class="flex w-full max-w-md gap-2">
-    <input name="content" value="{{ m.content }}" required autofocus
-           class="flex-1 rounded-xl border px-3 py-2">
-    <button class="rounded-xl bg-[#344536] px-3 py-2 text-white">Simpan</button>
-    <button type="button" hx-get="{% url 'chat:messages' m.conversation_id %}"
-            hx-target="#messages" hx-swap="innerHTML"
-            class="rounded-xl border px-3 py-2">Batal</button>
+        class="w-full max-w-md rounded-2xl border border-[#E8E0D0] bg-white p-3 shadow-sm">
+    <textarea name="content" rows="2" maxlength="2000" required autofocus
+              class="w-full resize-none rounded-xl border border-[#E8E0D0] bg-[#F8F3E9] px-3 py-2 text-base leading-snug">{{ m.content }}</textarea>
+    <div class="mt-2 flex justify-end gap-2">
+      <button type="button" class="btn btn-secondary"
+              hx-get="{% url 'chat:messages' m.conversation_id %}"
+              hx-target="#messages" hx-swap="innerHTML">Batal</button>
+      <button class="btn btn-primary">Simpan</button>
+    </div>
   </form>
 </div>
