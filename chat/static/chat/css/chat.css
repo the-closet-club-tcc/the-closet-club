@@ -82,3 +82,23 @@
 .upload-btn:active { transform: scale(.95); background: #D9C7AF; }
 .upload-btn:focus-visible { outline: 2px solid #344536; outline-offset: 2px; }
 .upload-btn:disabled { opacity: .5; }
+
+/* Reset ringan untuk tombol dan input polos (specificity nol, kelas lain tetap menang) */
+:where(.chat-root) button { background: transparent; border: 0; padding: 0; color: inherit; font: inherit; }
+:where(.chat-root) input, :where(.chat-root) textarea, :where(.chat-root) select { color: inherit; font: inherit; }
+.chat-root textarea { overflow-y: hidden; }
+
+/* Tombol aksi pada pesan (Edit, Hapus) */
+.msg-actions { display: inline-flex; gap: .25rem; }
+.msg-action { display: inline-flex; align-items: center; gap: .25rem; border: 0; border-radius: 9999px;
+  background: transparent; color: #6b6b60; padding: .15rem .5rem; font: inherit; font-size: .75rem;
+  line-height: 1.4; cursor: pointer; transition: background-color .15s, color .15s; }
+.msg-action:hover { background: #EFE5D8; color: var(--chat-ink); }
+.msg-action--danger:hover { background: #FBE9E7; color: var(--chat-danger); }
+.msg-action:focus-visible { outline: 2px solid var(--chat-green); outline-offset: 1px; }
+
+/* Layar sentuh: area ketuk lebih besar */
+@media (max-width: 767px) {
+  .msg-action { padding: .45rem .8rem; font-size: .8rem; }
+  .menu-item { padding: .7rem .75rem; }
+}
