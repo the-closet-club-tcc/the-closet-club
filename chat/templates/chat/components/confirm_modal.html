@@ -1,0 +1,19 @@
+<div id="confirm-modal" class="chat-modal" popover="auto" role="dialog"
+     aria-modal="true" aria-labelledby="confirm-modal-title">
+  <button type="button" class="chat-modal__backdrop"
+          popovertarget="confirm-modal" popovertargetaction="hide"
+          aria-label="Tutup konfirmasi"></button>
+  <div class="chat-modal__content">
+    <button type="button" class="chat-modal__close"
+            popovertarget="confirm-modal" popovertargetaction="hide"
+            aria-label="Tutup konfirmasi">×</button>
+    <h2 id="confirm-modal-title">Hapus pesan?</h2>
+    <p>Pesan ini akan dihapus untuk semua peserta percakapan.</p>
+    <div class="chat-modal__actions">
+      <button type="button" class="btn btn-secondary"
+              popovertarget="confirm-modal" popovertargetaction="hide">Batal</button>
+      <button type="button" id="confirm-modal-ok" class="btn btn-danger"
+              hx-target="#messages" hx-swap="innerHTML">Ya, hapus</button>
+    </div>
+  </div>
+</div>
