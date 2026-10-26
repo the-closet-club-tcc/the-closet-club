@@ -171,50 +171,131 @@
             <div class="profile-closet-content">
 
                 <p class="profile-empty">
-                    Your clothing collection will appear here.
+                    Nothing in the closet yet.
                 </p>
 
             </div>
 
         </section>
 
-        <!-- review -->
+        
+        <!-- reviews -->
         <section class="profile-reviews">
-
             <div class="profile-section-heading">
                 <h2>Reviews</h2>
-                <p>What other members say about you.</p>
-            </div>
-
-            {% for review in user_profile.reviews_received.all %}
-
-                <div class="profile-review-card">
-                    <div class="profile-review-header">
-                        <strong>
-                            {{ review.pemberi_review.username }}
-                        </strong>
-
-                        <span>
-                            ★ {{ review.rating }} / 5
-                        </span>
-                    </div>
-
-                    <p>{{ review.komentar|default:"No comment." }}</p>
-
-                    <small>
-                        {{ review.tanggal|date:"d F Y" }}
-                    </small>
-                </div>
-
-            {% empty %}
-
-                <p class="profile-empty">
-                    No reviews yet.
+                <p>
+                    What other members say about
+                    {{ user_profile.get_full_name|default:user_profile.username }}.
                 </p>
-            {% endfor %}
+            </div>
+            <!-- form review -->
+            {% if can_review and user.is_authenticated and user != user_profile %}
+                <div class="review-compose">
+                    <h3>Leave a Review</h3>
+                    <p class="review-compose-description">
+                        How was your experience swapping with
+                        @{{ user_profile.username }}?
+                    </p>
+                    <form method="POST"
+                        action="{% url 'add_review' user_profile.username %}"
+                        class="inline-review-form">
+                        {% csrf_token %}
+                        <!-- pilihan bintang -->
+                        <fieldset class="review-rating-fieldset">
+                            <legend>Your Rating</legend>
+                            <div class="review-star-picker">
+                                <input type="radio"
+                                    id="star-5"
+                                    name="rating"
+                                    value="5"
+                                    required>
+                                <label for="star-5"
+                                    title="5 stars">★</label>
+                                <input type="radio"
+                                    id="star-4"
+                                    name="rating"
+                                    value="4">
+                                <label for="star-4"
+                                    title="4 stars">★</label>
+                                <input type="radio"
+                                    id="star-3"
+                                    name="rating"
+                                    value="3">
+                                <label for="star-3"
+                                    title="3 stars">★</label>
+                                <input type="radio"
+                                    id="star-2"
+                                    name="rating"
+                                    value="2">
+                                <label for="star-2"
+                                    title="2 stars">★</label>
+                                <input type="radio"
+                                    id="star-1"
+                                    name="rating"
+                                    value="1">
+                                <label for="star-1"
+                                    title="1 star">★</label>
+                            </div>
+                        </fieldset>
 
+                        <!-- komentar -->
+                        <div class="review-comment-field">
+                            <label for="review-comment">
+                                Your Review
+                            </label>
+                            <textarea
+                                id="review-comment"
+                                name="komentar"
+                                rows="4"
+                                placeholder="Tell us about your swap experience..."
+                            ></textarea>
+
+                        </div>
+                        <p class="review-hint">
+                            Reviews can be submitted after a completed swap.
+                        </p>
+                        <button
+                            type="submit"
+                            class="review-submit-btn"
+                            disabled>
+                            Submit Review
+                        </button>
+                    </form>
+                </div>
+            {% elif user.is_authenticated and user != user_profile %}
+                <p class="review-hint">Review submission is currently unavailable.</p>
+            {% endif %}
+
+            <!-- review yang sudah ada -->
+            <div class="review-list">
+                <h3>Community Reviews</h3>
+                {% for review in reviews %}
+                    <div class="profile-review-card">
+
+                        <div class="profile-review-header">
+                            <strong>
+                                {{ review.pemberi_review.username }}
+                            </strong>
+                            <span class="review-display-rating">
+                                ★ {{ review.rating }} / 5
+                            </span>
+                        </div>
+
+                        <p>
+                            {{ review.komentar|default:"No comment." }}
+                        </p>
+                        <small>
+                            {{ review.tanggal|date:"d F Y" }}
+                        </small>
+                    </div>
+                {% empty %}
+
+                    <p class="profile-empty">
+                        No reviews yet.
+                    </p>
+                {% endfor %}
+            </div>
         </section>
-
     </div>
 </section>
 
