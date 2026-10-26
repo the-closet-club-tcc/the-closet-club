@@ -27,6 +27,7 @@
     const grow = () => {
       msgInput.style.height = 'auto';
       msgInput.style.height = Math.min(msgInput.scrollHeight, 128) + 'px';
+      msgInput.style.overflowY = msgInput.scrollHeight > 128 ? 'auto' : 'hidden';
       if (counter) {
         const left = msgInput.maxLength - msgInput.value.length;
         counter.hidden = left > 200;
@@ -41,6 +42,7 @@
       }
     });
     form.addEventListener('htmx:afterRequest', () => setTimeout(grow, 0));
+    grow();
   }
 
   /* Menu lampiran: tutup setelah satu pilihan diklik */
