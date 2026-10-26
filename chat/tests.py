@@ -14,6 +14,7 @@ from PIL import Image
 
 from .models import Conversation, Message, Attachment
 from . import osm
+from .views import QUICK_REPLIES
 
 User = get_user_model()
 
@@ -644,4 +645,76 @@ class MessageLimitTests(ChatTestBase):
         shown = resp.context['chat_messages']
         self.assertEqual(len(shown), 200)
         self.assertEqual(shown[0].content, 'pesan 50')
-        self.assertEqual(shown[-1].content, 'pesan 249')        
+        self.assertEqual(shown[-1].content, 'pesan 249')
+
+class ReplyTests(ChatTestBase):
+    def _send(self, **data):
+        return self.client.post(reverse('chat:send', args=[self.conv.id]), data)
+
+    def test_reply_links_to_original_message(self):
+        target = Message.objects.create(
+            conversation=self.conv, sender=self.amelia, content='Kemeja masih ada',
+        )
+        self.login(self.burhania)
+        resp = self._send(content='Boleh, aku ambil', reply_to=str(target.id))
+        self.assertEqual(resp.status_code, 200)
+        msg = self.conv.messages.last()
+        self.assertEqual(msg.reply_to_id, target.id)
+        self.assertTrue(msg.has_reply)
+        self.assertEqual(resp.context['chat_messages'][-1].reply_to_id, target.id)
+
+    def test_reply_to_message_in_other_conversation_is_ignored(self):
+        other = Conversation.objects.create(user1=self.amelia, user2=self.faizy)
+        foreign = Message.objects.create(conversation=other, sender=self.amelia, content='rahasia')
+        self.login(self.burhania)
+        self._send(content='halo', reply_to=str(foreign.id))
+        msg = self.conv.messages.last()
+        self.assertIsNone(msg.reply_to)
+        self.assertFalse(msg.has_reply)
+
+    def test_non_numeric_reply_to_is_ignored(self):
+        self.login(self.burhania)
+        self._send(content='halo', reply_to='abc')
+        msg = self.conv.messages.last()
+        self.assertIsNone(msg.reply_to)
+        self.assertFalse(msg.has_reply)
+
+    def test_deleted_original_shows_unavailable(self):
+        self.login(self.amelia)
+        self._send(content='Setuju', reply_to=str(self.msg_b.id))
+        self.client.logout()
+        self.login(self.burhania)
+        self.client.post(reverse('chat:delete', args=[self.msg_b.id]))
+        reply = self.conv.messages.last()
+        reply.refresh_from_db()
+        self.assertIsNone(reply.reply_to)
+        self.assertTrue(reply.has_reply)
+        resp = self.client.get(reverse('chat:messages', args=[self.conv.id]))
+        self.assertContains(resp, 'Pesan asli tidak tersedia')
+
+
+class QuickReplyTests(ChatTestBase):
+    def test_quick_replies_shown_in_room(self):
+        self.login(self.burhania)
+        resp = self.client.get(reverse('chat:room', args=[self.conv.id]))
+        self.assertEqual(resp.context['quick_replies'], QUICK_REPLIES)
+        for text in QUICK_REPLIES:
+            self.assertContains(resp, text)
+
+    def test_quick_reply_is_sent_as_plain_message(self):
+        self.login(self.burhania)
+        self.client.post(reverse('chat:send', args=[self.conv.id]), {'content': QUICK_REPLIES[0]})
+        msg = self.conv.messages.last()
+        self.assertEqual(msg.content, QUICK_REPLIES[0])
+        self.assertFalse(msg.has_reply)
+
+
+class PreviewTextTests(ChatTestBase):
+    def test_preview_text_per_type(self):
+        loc = Message(message_type='location', place_name='Stasiun Depok')
+        img = Message(message_type='image')
+        doc = Message(message_type='file', attachment_name='surat.pdf')
+        self.assertEqual(loc.preview_text(), 'Lokasi: Stasiun Depok')
+        self.assertEqual(img.preview_text(), 'Foto')
+        self.assertEqual(doc.preview_text(), 'Dokumen: surat.pdf')
+        self.assertEqual(self.msg_b.preview_text(), 'Halo')        
