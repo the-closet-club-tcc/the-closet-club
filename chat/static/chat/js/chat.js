@@ -20,13 +20,17 @@
     const emptyMsg = document.getElementById('conv-empty');
     let shown = 0;
     items.forEach((el) => {
-      const match = !q || el.dataset.search.includes(q);
-      el.hidden = !match;
+      const match = !q || (el.dataset.search || '').includes(q);
+      el.classList.toggle('conv-hidden', !match);
       if (match) shown += 1;
     });
-    if (emptyMsg) emptyMsg.hidden = !(q && items.length > 0 && shown === 0);
+    if (emptyMsg) emptyMsg.classList.toggle('conv-hidden', !(q && items.length > 0 && shown === 0));
   };
-  if (convSearch) convSearch.addEventListener('input', applyConvFilter);
+  if (convSearch) {
+    convSearch.addEventListener('input', applyConvFilter);
+    convSearch.addEventListener('search', applyConvFilter); // tombol × bawaan kolom pencarian
+    applyConvFilter();
+  }
   document.body.addEventListener('htmx:afterSwap', (e) => {
     if (e.target.id === 'conv-list') applyConvFilter();
   });
@@ -63,10 +67,16 @@
   });
   form.addEventListener('submit', () => { stick = true; });
   form.addEventListener('htmx:afterRequest', (e) => {
-    if (e.detail.successful) form.reset();
+    if (e.detail.successful) {
+      form.reset();
+      clearReply();
+    }
   });
   document.body.addEventListener('htmx:afterSwap', (e) => {
     if (e.target === box && stick) toBottom();
+  });
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('.quick-chip')) stick = true;
   });
 
   /* Kolom pesan: Enter kirim, Shift+Enter baris baru, tinggi otomatis, hitungan karakter */
@@ -93,6 +103,36 @@
     form.addEventListener('htmx:afterRequest', () => setTimeout(grow, 0));
     grow();
   }
+
+  /* Balas pesan tertentu */
+  const replyInput = document.getElementById('reply-to-input');
+  const replyChip = document.getElementById('reply-chip');
+  const replyWho = document.getElementById('reply-who');
+  const replyText = document.getElementById('reply-text');
+  const replyCancel = document.getElementById('reply-cancel');
+  const clearReply = () => {
+    if (!replyInput) return;
+    replyInput.value = '';
+    if (replyChip) replyChip.classList.add('hidden');
+  };
+  const setReply = (id, who, text) => {
+    if (!replyInput || !replyChip) return;
+    replyInput.value = id;
+    replyWho.textContent = who;   // textContent: aman dari XSS
+    replyText.textContent = text;
+    replyChip.classList.remove('hidden');
+    if (msgInput) msgInput.focus();
+  };
+  if (replyCancel) replyCancel.addEventListener('click', clearReply);
+  if (msgInput) {
+    msgInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && replyInput && replyInput.value) clearReply();
+    });
+  }
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-reply-id]');
+    if (btn) setReply(btn.dataset.replyId, btn.dataset.replyWho, btn.dataset.replyText);
+  });
 
   /* Menu lampiran: tutup setelah satu pilihan diklik */
   const attachMenu = document.getElementById('attach-menu');
