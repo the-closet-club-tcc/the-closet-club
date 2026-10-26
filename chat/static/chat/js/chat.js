@@ -1,24 +1,73 @@
-/* chat.js: scroll, lampiran, modal konfirmasi, dan penanganan error halaman chat. */
+/* chat.js: perilaku halaman chat. */
 (function () {
-  /* Pencarian percakapan (dilakukan di browser, tanpa request ke server) */
+  const toast = (msg, kind) => window.showToast(msg, kind);
+
+  /* Toast setelah hapus percakapan (halaman dimuat dengan ?deleted=1) */
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('deleted')) {
+    toast('Percakapan dihapus');
+    params.delete('deleted');
+    const rest = params.toString();
+    history.replaceState(null, '', window.location.pathname + (rest ? '?' + rest : ''));
+  }
+
+  /* Pencarian percakapan: disaring di browser, tetap berlaku setelah daftar diperbarui */
   const convSearch = document.getElementById('conv-search');
-  if (convSearch) {
+  const applyConvFilter = () => {
+    if (!convSearch) return;
+    const q = convSearch.value.trim().toLowerCase();
     const items = document.querySelectorAll('.conv-item');
     const emptyMsg = document.getElementById('conv-empty');
-    convSearch.addEventListener('input', () => {
-      const q = convSearch.value.trim().toLowerCase();
-      let shown = 0;
-      items.forEach((el) => {
-        const match = !q || el.dataset.search.includes(q);
-        el.hidden = !match;
-        if (match) shown += 1;
-      });
-      if (emptyMsg) emptyMsg.hidden = shown > 0 || items.length === 0;
+    let shown = 0;
+    items.forEach((el) => {
+      const match = !q || el.dataset.search.includes(q);
+      el.hidden = !match;
+      if (match) shown += 1;
     });
-  }  
+    if (emptyMsg) emptyMsg.hidden = !(q && items.length > 0 && shown === 0);
+  };
+  if (convSearch) convSearch.addEventListener('input', applyConvFilter);
+  document.body.addEventListener('htmx:afterSwap', (e) => {
+    if (e.target.id === 'conv-list') applyConvFilter();
+  });
+
+  /* Penanganan error request HTMX (polling GET diabaikan) */
+  document.body.addEventListener('htmx:responseError', (e) => {
+    const { xhr, requestConfig } = e.detail;
+    if (requestConfig && requestConfig.verb === 'get') return;
+    const text = xhr.responseText || '';
+    if (xhr.status === 413) toast('File terlalu besar untuk server.', 'error');
+    else if (xhr.status === 403) toast('Kamu tidak punya izin untuk aksi ini.', 'error');
+    else if (xhr.status === 400 && text && !text.startsWith('<')) toast(text.slice(0, 200), 'error');
+    else toast(`Terjadi kesalahan (kode ${xhr.status}).`, 'error');
+  });
+  document.body.addEventListener('htmx:sendError', (e) => {
+    const cfg = e.detail && e.detail.requestConfig;
+    if (cfg && cfg.verb === 'get') return;
+    toast('Koneksi bermasalah. Coba lagi.', 'error');
+  });
+
+  /* ---- Bagian berikut hanya untuk halaman dengan chat room terbuka ---- */
   const box = document.getElementById('messages');
   const form = document.getElementById('message-form');
-  if (!box || !form) return; // halaman tanpa percakapan terpilih
+  if (!box || !form) return;
+
+  let stick = true;
+  const toBottom = () => { box.scrollTop = box.scrollHeight; };
+
+  /* Scroll otomatis ke pesan terbaru */
+  toBottom();
+  window.addEventListener('load', () => setTimeout(toBottom, 100));
+  box.addEventListener('scroll', () => {
+    stick = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  });
+  form.addEventListener('submit', () => { stick = true; });
+  form.addEventListener('htmx:afterRequest', (e) => {
+    if (e.detail.successful) form.reset();
+  });
+  document.body.addEventListener('htmx:afterSwap', (e) => {
+    if (e.target === box && stick) toBottom();
+  });
 
   /* Kolom pesan: Enter kirim, Shift+Enter baris baru, tinggi otomatis, hitungan karakter */
   const msgInput = form.querySelector('textarea[name="content"]');
@@ -51,25 +100,7 @@
     attachMenu.querySelectorAll('.menu-item').forEach((b) => {
       b.addEventListener('click', () => attachMenu.removeAttribute('open'));
     });
-  }  
-
-  const toast = (msg, kind) => window.showToast(msg, kind);
-  let stick = true;
-  const toBottom = () => { box.scrollTop = box.scrollHeight; };
-
-  /* Scroll otomatis ke pesan terbaru */
-  toBottom();
-  window.addEventListener('load', () => setTimeout(toBottom, 100));
-  box.addEventListener('scroll', () => {
-    stick = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
-  });
-  form.addEventListener('submit', () => { stick = true; });
-  form.addEventListener('htmx:afterRequest', (e) => {
-    if (e.detail.successful) form.reset();
-  });
-  document.body.addEventListener('htmx:afterSwap', (e) => {
-    if (e.target === box && stick) toBottom();
-  });
+  }
 
   /* Lampiran: foto, kamera, dokumen */
   const attachForm = document.getElementById('attach-form');
@@ -122,9 +153,10 @@
       setUploading(false);
       if (e.detail.successful) toast('Berkas terkirim');
     });
+    attachForm.addEventListener('htmx:sendError', () => setUploading(false));
   }
 
-  /* Modal konfirmasi hapus: satu modal dipakai untuk semua pesan */
+  /* Modal konfirmasi hapus pesan: satu modal dipakai untuk semua pesan */
   const modal = document.getElementById('confirm-modal');
   const okBtn = document.getElementById('confirm-modal-ok');
   if (modal && okBtn) {
@@ -140,18 +172,4 @@
       if (e.detail.successful) toast('Pesan dihapus');
     });
   }
-
-  /* Penanganan error untuk semua request HTMX (kecuali polling GET) */
-  document.body.addEventListener('htmx:responseError', (e) => {
-    const { xhr, requestConfig } = e.detail;
-    if (requestConfig && requestConfig.verb === 'get') return;
-    const text = xhr.responseText || '';
-    if (xhr.status === 413) toast('File terlalu besar untuk server.', 'error');
-    else if (xhr.status === 403) toast('Kamu tidak punya izin untuk aksi ini.', 'error');
-    else if (xhr.status === 400 && text && !text.startsWith('<')) toast(text.slice(0, 200), 'error');
-    else toast(`Terjadi kesalahan (kode ${xhr.status}).`, 'error');
-  });
-  document.body.addEventListener('htmx:sendError', () => {
-    toast('Koneksi bermasalah. Coba lagi.', 'error');
-  });
 })();
