@@ -1,0 +1,20 @@
+{% for c in conversations %}
+<a href="{% url 'chat:room' c.conversation.id %}"
+   data-search="{{ c.other.username|lower }} {{ c.preview|lower }}"
+   class="conv-item mb-1 flex items-center gap-3 rounded-xl p-3 {% if active_id == c.conversation.id %}bg-[#D9C7AF]{% else %}hover:bg-[#F8F3E9]{% endif %}">
+  {% include 'chat/components/avatar.html' with person=c.other size=44 %}
+  <div class="min-w-0 flex-1">
+    <p class="truncate font-semibold">{{ c.other.username }}</p>
+    <p class="truncate text-sm text-gray-600">{{ c.preview }}</p>
+  </div>
+  <div class="flex flex-col items-end gap-1 text-xs text-gray-500">
+    <span>{{ c.last_time|time:"H:i" }}</span>
+    {% if c.unread %}
+    <span class="rounded-full bg-[#344536] px-2 py-0.5 text-white">{{ c.unread }}</span>
+    {% endif %}
+  </div>
+</a>
+{% empty %}
+<p class="p-6 text-center text-gray-500">Belum ada percakapan</p>
+{% endfor %}
+<p id="conv-empty" class="p-6 text-center text-gray-500" hidden>Tidak ada hasil</p>
