@@ -1,8 +1,19 @@
 from django.contrib import admin
-from django.db import transaction
+from django.contrib.auth.admin import UserAdmin
 from .models import User, Verification, Review
 
-admin.site.register(User)
+@admin.register(User)
+class AccountUserAdmin(UserAdmin):
+    fieldsets = UserAdmin.fieldsets + (
+        ("Profile", {"fields": ("foto_profil", "bio", "lokasi", "is_verified")}),
+    )
+
+    def get_readonly_fields(self, request, obj=None):
+        fields = super().get_readonly_fields(request, obj) + ("is_verified",)
+        if obj and obj.is_verified:
+            fields += ("first_name", "last_name", "email")
+        return fields
+
 admin.site.register(Review)
 
 @admin.register(Verification)
@@ -24,13 +35,3 @@ class VerificationAdmin(admin.ModelAdmin):
         if obj:
             return ("user", "tanggal_pengajuan")
         return ("tanggal_pengajuan",)
-
-    @transaction.atomic
-    def save_model(self, request, obj, form, change):
-
-        # simpan perubahan status Verification
-        super().save_model(request, obj, form, change)
-        # update status verified pada User
-        obj.user.is_verified = (obj.status == "approved")
-        # simpan perubahan ke database
-        obj.user.save(update_fields=["is_verified"])
