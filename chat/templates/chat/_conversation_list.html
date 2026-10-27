@@ -1,5 +1,10 @@
 {% for c in conversations %}
 <a href="{% url 'chat:room' c.conversation.id %}"
+   hx-get="{% url 'chat:room' c.conversation.id %}"
+   hx-target="#chat-panel"
+   hx-select="#chat-panel"
+   hx-swap="outerHTML"
+   hx-push-url="true"
    data-search="{{ c.other.username|lower }} {{ c.preview|lower }}"
    class="conv-item mb-1 flex items-center gap-3 rounded-xl p-3 {% if active_id == c.conversation.id %}bg-[#D9C7AF]{% else %}hover:bg-[#F8F3E9]{% endif %}">
   {% include 'chat/components/avatar.html' with person=c.other size=44 %}
