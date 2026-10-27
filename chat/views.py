@@ -212,7 +212,10 @@ def edit_message(request, message_id):
 @login_required
 @require_POST
 def delete_message(request, message_id):
-    msg = get_object_or_404(Message, pk=message_id, sender=request.user)
+    msg = get_object_or_404(
+        Message.objects.exclude(message_type='swap'),
+        pk=message_id, sender=request.user,
+    )
     conv = _get_conversation(request.user, msg.conversation_id)
     msg.delete()
     return _render_messages(request, conv)
