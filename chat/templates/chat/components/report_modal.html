@@ -1,0 +1,35 @@
+<div id="report-modal" class="chat-modal" popover="auto" role="dialog"
+     aria-modal="true" aria-labelledby="report-modal-title"
+     data-user="{{ other_user.username }}">
+  <button type="button" class="chat-modal__backdrop"
+          popovertarget="report-modal" popovertargetaction="hide"
+          aria-label="Tutup form laporan"></button>
+  <div class="chat-modal__content">
+    <button type="button" class="chat-modal__close"
+            popovertarget="report-modal" popovertargetaction="hide"
+            aria-label="Tutup form laporan">×</button>
+    <h2 id="report-modal-title">Laporkan</h2>
+    <p id="report-target">Melaporkan {{ other_user.username }}</p>
+    <form id="report-form" hx-post="{% url 'chat:report' active.id %}" hx-swap="none" class="mt-4 space-y-3">
+      <input type="hidden" name="message_id" id="report-message-id" value="">
+      <fieldset class="space-y-1.5">
+        <legend class="mb-1 text-sm font-semibold">Alasan</legend>
+        {% for value, label in report_reasons %}
+        <label class="flex items-center gap-2 text-sm">
+          <input type="radio" name="reason" value="{{ value }}" required> {{ label }}
+        </label>
+        {% endfor %}
+      </fieldset>
+      <label class="block text-sm font-semibold">Keterangan
+        <span class="font-normal text-gray-500">(wajib untuk "Lainnya")</span>
+        <textarea name="detail" rows="3" maxlength="500"
+                  class="mt-1 w-full resize-none rounded-xl border border-[#E8E0D0] bg-white px-3 py-2 text-base font-normal md:text-sm"></textarea>
+      </label>
+      <div class="chat-modal__actions">
+        <button type="button" class="btn btn-secondary"
+                popovertarget="report-modal" popovertargetaction="hide">Batal</button>
+        <button class="btn btn-danger">Kirim laporan</button>
+      </div>
+    </form>
+  </div>
+</div>
