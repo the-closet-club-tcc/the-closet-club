@@ -59,6 +59,44 @@
             <span>Status: <strong>{{ sr.get_status_display }}</strong></span>
             <span>oleh {{ sr.sender.username }}</span>
           </div>
+          {% with me=request.user.id %}
+          <div class="flex flex-wrap gap-2 border-t border-[#E8E0D0] px-3 py-2">
+            {% if sr.status == 'pending' %}
+              {% if me == sr.recipient_id %}
+                <a href="{% url 'closet:user_closet' sr.sender.username %}"
+                   class="rounded-lg border border-[#344536] px-3 py-1 text-sm text-[#344536]">Lihat Closet</a>
+                <a href="{% url 'swap:choose_counter' sr.pk %}"
+                   class="rounded-lg bg-[#344536] px-3 py-1 text-sm text-white">Propose Item</a>
+                <form method="post" action="{% url 'swap:decline' sr.pk %}">{% csrf_token %}
+                  <button class="rounded-lg border border-red-300 px-3 py-1 text-sm text-red-600">Decline</button>
+                </form>
+              {% else %}
+                <span class="text-xs italic text-gray-500">Menunggu penerima memilih barang</span>
+              {% endif %}
+
+            {% elif sr.status == 'counter_proposed' %}
+              {% if me == sr.sender_id %}
+                <form method="post" action="{% url 'swap:agree' sr.pk %}">{% csrf_token %}
+                  <button class="rounded-lg bg-[#344536] px-3 py-1 text-sm text-white">Agree</button>
+                </form>
+                <form method="post" action="{% url 'swap:decline' sr.pk %}">{% csrf_token %}
+                  <button class="rounded-lg border border-red-300 px-3 py-1 text-sm text-red-600">Decline</button>
+                </form>
+              {% else %}
+                <span class="text-xs italic text-gray-500">Menunggu konfirmasi pengirim</span>
+              {% endif %}
+
+            {% elif sr.status == 'agreed' %}
+              {% if me == sr.sender_id and sr.sender_confirmed or me == sr.recipient_id and sr.recipient_confirmed %}
+                <span class="text-xs italic text-gray-500">Menunggu pihak lain mengonfirmasi</span>
+              {% else %}
+                <form method="post" action="{% url 'swap:complete' sr.pk %}">{% csrf_token %}
+                  <button class="rounded-lg bg-[#344536] px-3 py-1 text-sm text-white">Sudah ditukar</button>
+                </form>
+              {% endif %}
+            {% endif %}
+          </div>
+          {% endwith %}          
           {% else %}
           <p class="p-3 text-sm italic text-gray-500">Permintaan swap tidak tersedia</p>
           {% endif %}
