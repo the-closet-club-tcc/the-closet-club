@@ -9,6 +9,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from closet.models import Clothing
 from chat.models import Conversation
+from chat.services import post_swap_request_card
 
 from .forms import SwapRequestForm
 from .models import Interest, SwapRequest
@@ -71,6 +72,13 @@ def save_interest(request, pk):
     if item is None:
         return JsonResponse({'error': 'This item is no longer available for swap.'}, status=404)
     Interest.objects.get_or_create(user=request.user, item=item)
+    with transaction.atomic():
+        swap_request, _ = SwapRequest.objects.get_or_create(
+            sender=request.user, requested_item=item,
+            status=SwapRequest.Status.PENDING,
+            defaults={'recipient': item.owner},
+        )
+        post_swap_request_card(swap_request)
     return JsonResponse({'saved': True})
 
 
