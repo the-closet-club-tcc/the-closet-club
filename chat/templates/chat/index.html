@@ -71,10 +71,44 @@
                   class="hidden rounded-lg border border-[#344536] px-3 py-2 text-sm text-[#344536] opacity-50 sm:inline-block">Lihat Closet</button>
           <a href="{% url 'swap:index' %}"
              class="rounded-lg bg-[#344536] px-3 py-2 text-xs text-white sm:text-sm">Ajukan Swap</a>
-          <button type="button" class="icon-btn" popovertarget="delete-conv-modal"
-                  aria-label="Hapus percakapan" title="Hapus percakapan"><i class="bi bi-trash3"></i></button>
+          <details id="room-menu" class="relative">
+            <summary class="icon-btn" aria-label="Menu percakapan" title="Menu percakapan"><i class="bi bi-three-dots-vertical"></i></summary>
+            <div class="absolute right-0 top-12 z-20 w-56 rounded-xl border border-[#E8E0D0] bg-white p-1 shadow-lg">
+              <button type="button" class="menu-item" data-report-message="" data-report-label=""><i class="bi bi-flag"></i> Laporkan pengguna</button>
+              {% if blocked_by_me %}
+              <form method="post" action="{% url 'chat:unblock' active.id %}">
+                {% csrf_token %}
+                <button class="menu-item"><i class="bi bi-slash-circle"></i> Buka blokir</button>
+              </form>
+              {% else %}
+              <button type="button" class="menu-item" popovertarget="block-modal"><i class="bi bi-slash-circle"></i> Blokir pengguna</button>
+              {% endif %}
+              <button type="button" class="menu-item text-red-700" popovertarget="delete-conv-modal"><i class="bi bi-trash3"></i> Hapus percakapan</button>
+            </div>
+          </details>
         </div>
       </header>
+
+      {% if is_request %}
+      <div class="flex flex-wrap items-center gap-3 border-b border-[#E8E0D0] bg-white px-4 py-3 text-sm md:px-6">
+        <p class="min-w-0 flex-1"><strong>{{ other_user.username }}</strong> baru menghubungimu. Membalas pesan akan menerima percakapan ini.</p>
+        <div class="flex shrink-0 gap-2">
+          <form method="post" action="{% url 'chat:accept' active.id %}">
+            {% csrf_token %}
+            <button class="btn btn-primary">Terima</button>
+          </form>
+          <button type="button" class="btn btn-secondary" popovertarget="block-modal">Blokir</button>
+          <button type="button" class="btn btn-secondary" data-report-message="" data-report-label="">Laporkan</button>
+        </div>
+      </div>
+      {% endif %}
+
+      <div id="safety-banner" data-conv="{{ active.id }}"
+           class="flex items-start gap-2 bg-[#EFE5D8] px-4 py-2 text-xs text-[#4b4b42] md:px-6">
+        <i class="bi bi-shield-check mt-0.5 text-[#344536]"></i>
+        <p class="min-w-0 flex-1">Bertemu di tempat umum, jangan transfer sebelum barang diterima.</p>
+        <button type="button" id="safety-dismiss" aria-label="Tutup pengingat"><i class="bi bi-x-lg"></i></button>
+      </div>
 
       {% if active.item_name %}
       <div class="mx-4 mt-4 flex items-center gap-3 rounded-xl bg-[#EFE5D8] p-3 md:mx-6">
@@ -112,6 +146,19 @@
         </div>
       </div>
 
+      {% if blocked_by_me %}
+      <div class="border-t border-[#E8E0D0] bg-white p-4 text-center text-sm">
+        <p class="text-gray-600">Kamu memblokir {{ other_user.username }}. Buka blokir untuk mengirim pesan.</p>
+        <form method="post" action="{% url 'chat:unblock' active.id %}" class="mt-2">
+          {% csrf_token %}
+          <button class="btn btn-secondary">Buka blokir</button>
+        </form>
+      </div>
+      {% elif blocked_me %}
+      <div class="border-t border-[#E8E0D0] bg-white p-4 text-center text-sm text-gray-600">
+        Kamu tidak dapat mengirim pesan di percakapan ini.
+      </div>
+      {% else %}
       <div class="border-t border-[#E8E0D0] bg-white p-3 md:p-4">
         <div class="mb-2 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Balasan cepat">
           {% for text in quick_replies %}
@@ -148,6 +195,7 @@
         </form>
         <p id="char-count" class="mt-1 text-right text-xs text-gray-500" hidden></p>
       </div>
+      {% endif %}
     {% else %}
       <div class="flex flex-1 flex-col items-center justify-center gap-2 text-gray-500">
         <i class="bi bi-chat-dots text-4xl text-[#344536]"></i>
@@ -161,6 +209,8 @@
     {% include 'chat/components/confirm_modal.html' %}
     {% include 'chat/components/location_modal.html' %}
     {% include 'chat/components/delete_conversation_modal.html' %}
+    {% include 'chat/components/block_modal.html' %}
+    {% include 'chat/components/report_modal.html' %}
   {% endif %}
 </div>
 {% endblock %}
