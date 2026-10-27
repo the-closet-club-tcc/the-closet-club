@@ -9,7 +9,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from closet.models import Clothing
 from chat.models import Conversation
-from chat.services import post_swap_request_card
+from chat.services import ensure_swap_card
 
 from .forms import SwapRequestForm
 from .models import Interest, SwapRequest
@@ -63,6 +63,14 @@ def interested_items(request):
         )
     return render(request, 'swap/interested.html', {'interests': interests})
 
+def _get_or_create_conversation(user_a_id, user_b_id):
+    conversation = Conversation.objects.filter(
+        Q(user1_id=user_a_id, user2_id=user_b_id)
+        | Q(user1_id=user_b_id, user2_id=user_a_id)
+    ).first()
+    if conversation is None:
+        conversation = Conversation.objects.create(user1_id=user_a_id, user2_id=user_b_id)
+    return conversation
 
 @require_POST
 def save_interest(request, pk):
@@ -71,14 +79,15 @@ def save_interest(request, pk):
     item = Clothing.objects.filter(pk=pk, status__in=SWAP_STATUSES).exclude(owner=request.user).first()
     if item is None:
         return JsonResponse({'error': 'This item is no longer available for swap.'}, status=404)
-    Interest.objects.get_or_create(user=request.user, item=item)
     with transaction.atomic():
+        Interest.objects.get_or_create(user=request.user, item=item)
         swap_request, _ = SwapRequest.objects.get_or_create(
             sender=request.user, requested_item=item,
             status=SwapRequest.Status.PENDING,
             defaults={'recipient': item.owner},
         )
-        post_swap_request_card(swap_request)
+        conversation = _get_or_create_conversation(swap_request.sender_id, swap_request.recipient_id)
+        ensure_swap_card(conversation, swap_request)
     return JsonResponse({'saved': True})
 
 
