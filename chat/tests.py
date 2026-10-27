@@ -12,7 +12,7 @@ from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from PIL import Image
 
-from .models import Conversation, Message, Attachment
+from .models import Conversation, Message, Attachment, Report, Block
 from . import osm
 from .views import QUICK_REPLIES
 
@@ -717,4 +717,219 @@ class PreviewTextTests(ChatTestBase):
         self.assertEqual(loc.preview_text(), 'Lokasi: Stasiun Depok')
         self.assertEqual(img.preview_text(), 'Foto')
         self.assertEqual(doc.preview_text(), 'Dokumen: surat.pdf')
-        self.assertEqual(self.msg_b.preview_text(), 'Halo')        
+        self.assertEqual(self.msg_b.preview_text(), 'Halo')
+
+class BlockTests(ChatTestBase):
+    def _block(self, user=None):
+        self.login(user or self.burhania)
+        return self.client.post(reverse('chat:block', args=[self.conv.id]))
+
+    def test_block_creates_block_and_redirects(self):
+        resp = self._block()
+        self.assertRedirects(resp, reverse('chat:room', args=[self.conv.id]) + '?blocked=1')
+        self.assertTrue(Block.objects.filter(blocker=self.burhania, blocked=self.amelia).exists())
+
+    def test_block_twice_creates_one_block(self):
+        self._block()
+        self._block()
+        self.assertEqual(Block.objects.count(), 1)
+
+    def test_block_non_participant_404_and_get_405(self):
+        self.assertEqual(self._block(self.faizy).status_code, 404)
+        self.login(self.burhania)
+        self.assertEqual(self.client.get(reverse('chat:block', args=[self.conv.id])).status_code, 405)
+
+    def test_blocked_user_cannot_send_anything(self):
+        Block.objects.create(blocker=self.burhania, blocked=self.amelia)
+        self.login(self.amelia)
+        resp = self.client.post(reverse('chat:send', args=[self.conv.id]), {'content': 'halo'})
+        self.assertEqual(resp.status_code, 403)
+        self.assertIn('tidak dapat mengirim pesan', resp.content.decode())
+        resp = self.client.post(reverse('chat:send_location', args=[self.conv.id]),
+                                {'name': 'X', 'lat': '-6.3', 'lon': '106.8'})
+        self.assertEqual(resp.status_code, 403)
+        resp = self.client.post(reverse('chat:send_attachment', args=[self.conv.id]),
+                                {'file': SimpleUploadedFile('s.pdf', b'%PDF', content_type='application/pdf')})
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(self.conv.messages.count(), 2)
+
+    def test_blocker_cannot_send_until_unblocked(self):
+        Block.objects.create(blocker=self.burhania, blocked=self.amelia)
+        self.login(self.burhania)
+        url = reverse('chat:send', args=[self.conv.id])
+        resp = self.client.post(url, {'content': 'halo'})
+        self.assertEqual(resp.status_code, 403)
+        self.assertIn('Buka blokir untuk mengirim pesan', resp.content.decode())
+        resp = self.client.post(reverse('chat:unblock', args=[self.conv.id]))
+        self.assertRedirects(resp, reverse('chat:room', args=[self.conv.id]) + '?unblocked=1')
+        self.assertEqual(self.client.post(url, {'content': 'halo'}).status_code, 200)
+
+    def test_unblock_non_participant_404_and_get_405(self):
+        self.login(self.faizy)
+        self.assertEqual(self.client.post(reverse('chat:unblock', args=[self.conv.id])).status_code, 404)
+        self.client.logout()
+        self.login(self.burhania)
+        self.assertEqual(self.client.get(reverse('chat:unblock', args=[self.conv.id])).status_code, 405)
+
+    def test_room_shows_blocked_state(self):
+        Block.objects.create(blocker=self.burhania, blocked=self.amelia)
+        self.login(self.burhania)
+        resp = self.client.get(reverse('chat:room', args=[self.conv.id]))
+        self.assertTrue(resp.context['blocked_by_me'])
+        self.assertContains(resp, 'Buka blokir')
+        self.assertNotContains(resp, 'id="message-form"')
+        self.client.logout()
+        self.login(self.amelia)
+        resp = self.client.get(reverse('chat:room', args=[self.conv.id]))
+        self.assertTrue(resp.context['blocked_me'])
+        self.assertContains(resp, 'tidak dapat mengirim pesan')
+
+    def test_cannot_start_when_blocked_either_way(self):
+        Block.objects.create(blocker=self.faizy, blocked=self.burhania)
+        self.login(self.burhania)
+        resp = self.client.post(reverse('chat:start', args=[self.faizy.id]))
+        self.assertRedirects(resp, reverse('chat:index') + '?cannot_start=1')
+        Block.objects.all().delete()
+        Block.objects.create(blocker=self.burhania, blocked=self.faizy)
+        resp = self.client.post(reverse('chat:start', args=[self.faizy.id]))
+        self.assertRedirects(resp, reverse('chat:index') + '?cannot_start=1')
+        self.assertFalse(Conversation.objects.filter(user1=self.burhania, user2=self.faizy).exists())
+
+    def test_blocked_users_hidden_from_search(self):
+        Block.objects.create(blocker=self.burhania, blocked=self.faizy)
+        Block.objects.create(blocker=self.amelia, blocked=self.burhania)
+        self.login(self.burhania)
+        resp = self.client.get(reverse('chat:user_search'))
+        self.assertEqual(list(resp.context['new_users']), [])
+
+
+class ReportTests(ChatTestBase):
+    def _report(self, **data):
+        return self.client.post(reverse('chat:report', args=[self.conv.id]), data)
+
+    def test_report_user(self):
+        self.login(self.burhania)
+        resp = self._report(reason='spam', detail='  iklan terus  ')
+        self.assertEqual(resp.status_code, 204)
+        obj = Report.objects.get()
+        self.assertEqual((obj.reporter, obj.reported_user, obj.reason), (self.burhania, self.amelia, 'spam'))
+        self.assertEqual(obj.detail, 'iklan terus')
+        self.assertIsNone(obj.message)
+
+    def test_report_message_keeps_excerpt_after_deletion(self):
+        self.login(self.burhania)
+        resp = self._report(reason='penipuan', message_id=str(self.msg_a.id))
+        self.assertEqual(resp.status_code, 204)
+        obj = Report.objects.get()
+        self.assertEqual(obj.message, self.msg_a)
+        self.assertEqual(obj.message_excerpt, 'Hai')
+        self.msg_a.delete()
+        obj.refresh_from_db()
+        self.assertIsNone(obj.message)
+        self.assertEqual(obj.message_excerpt, 'Hai')
+
+    def test_reason_required_and_validated(self):
+        self.login(self.burhania)
+        for data in ({}, {'reason': 'xyz'}):
+            resp = self._report(**data)
+            self.assertEqual(resp.status_code, 400)
+            self.assertIn('Pilih alasan laporan', resp.content.decode())
+        self.assertEqual(Report.objects.count(), 0)
+
+    def test_other_reason_needs_detail(self):
+        self.login(self.burhania)
+        resp = self._report(reason='lainnya')
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('Jelaskan laporanmu', resp.content.decode())
+        self.assertEqual(self._report(reason='lainnya', detail='perilaku aneh').status_code, 204)
+
+    def test_detail_too_long(self):
+        self.login(self.burhania)
+        resp = self._report(reason='spam', detail='a' * 501)
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('maksimal 500 karakter', resp.content.decode())
+
+    def test_cannot_report_own_message_or_foreign_message_or_bad_id(self):
+        other = Conversation.objects.create(user1=self.amelia, user2=self.faizy)
+        foreign = Message.objects.create(conversation=other, sender=self.amelia, content='x')
+        self.login(self.burhania)
+        for bad in (str(self.msg_b.id), str(foreign.id), 'abc'):
+            resp = self._report(reason='spam', message_id=bad)
+            self.assertEqual(resp.status_code, 400, bad)
+        self.assertEqual(Report.objects.count(), 0)
+
+    def test_access_rules(self):
+        self.assertEqual(self._report(reason='spam').status_code, 302)
+        self.login(self.faizy)
+        self.assertEqual(self._report(reason='spam').status_code, 404)
+        self.client.logout()
+        self.login(self.burhania)
+        self.assertEqual(self.client.get(reverse('chat:report', args=[self.conv.id])).status_code, 405)
+
+
+class MessageRequestTests(ChatTestBase):
+    def _pending(self):
+        return Conversation.objects.create(user1=self.faizy, user2=self.amelia, accepted=False)
+
+    def test_existing_conversations_are_accepted(self):
+        self.assertTrue(self.conv.accepted)
+
+    def test_new_chat_starts_as_request(self):
+        self.login(self.faizy)
+        self.client.post(reverse('chat:start', args=[self.amelia.id]))
+        self.assertFalse(Conversation.objects.get(user1=self.faizy, user2=self.amelia).accepted)
+
+    def test_banner_only_for_recipient(self):
+        conv = self._pending()
+        self.login(self.amelia)
+        resp = self.client.get(reverse('chat:room', args=[conv.id]))
+        self.assertTrue(resp.context['is_request'])
+        self.assertContains(resp, 'baru menghubungimu')
+        self.client.logout()
+        self.login(self.faizy)
+        resp = self.client.get(reverse('chat:room', args=[conv.id]))
+        self.assertFalse(resp.context['is_request'])
+        self.assertNotContains(resp, 'baru menghubungimu')
+
+    def test_recipient_reply_accepts_but_initiator_message_does_not(self):
+        conv = self._pending()
+        self.login(self.faizy)
+        self.client.post(reverse('chat:send', args=[conv.id]), {'content': 'halo'})
+        conv.refresh_from_db()
+        self.assertFalse(conv.accepted)
+        self.client.logout()
+        self.login(self.amelia)
+        self.client.post(reverse('chat:send', args=[conv.id]), {'content': 'hai'})
+        conv.refresh_from_db()
+        self.assertTrue(conv.accepted)
+
+    def test_accept_view(self):
+        conv = self._pending()
+        self.login(self.amelia)
+        resp = self.client.post(reverse('chat:accept', args=[conv.id]))
+        self.assertRedirects(resp, reverse('chat:room', args=[conv.id]) + '?accepted=1')
+        conv.refresh_from_db()
+        self.assertTrue(conv.accepted)
+
+    def test_initiator_cannot_accept_own_request(self):
+        conv = self._pending()
+        self.login(self.faizy)
+        resp = self.client.post(reverse('chat:accept', args=[conv.id]))
+        self.assertRedirects(resp, reverse('chat:room', args=[conv.id]))
+        conv.refresh_from_db()
+        self.assertFalse(conv.accepted)
+
+    def test_accept_non_participant_404_and_get_405(self):
+        conv = self._pending()
+        self.login(self.burhania)
+        self.assertEqual(self.client.post(reverse('chat:accept', args=[conv.id])).status_code, 404)
+        self.client.logout()
+        self.login(self.amelia)
+        self.assertEqual(self.client.get(reverse('chat:accept', args=[conv.id])).status_code, 405)
+
+
+class SafetyBannerTests(ChatTestBase):
+    def test_banner_text_shown_in_room(self):
+        self.login(self.burhania)
+        resp = self.client.get(reverse('chat:room', args=[self.conv.id]))
+        self.assertContains(resp, 'Bertemu di tempat umum, jangan transfer sebelum barang diterima')
