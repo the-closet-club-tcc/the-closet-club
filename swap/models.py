@@ -22,6 +22,11 @@ class Interest(models.Model):
 class SwapRequest(models.Model):
     class Status(models.TextChoices):
         PENDING = 'pending', 'Pending'
+        COUNTER_PROPOSED = 'counter_proposed', 'Counter proposed'
+        AGREED = 'agreed', 'Agreed'
+        COMPLETED = 'completed', 'Completed'
+        DECLINED = 'declined', 'Declined'
+        CANCELLED = 'cancelled', 'Cancelled'        
 
     sender = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
@@ -41,6 +46,8 @@ class SwapRequest(models.Model):
     )
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
     created_at = models.DateTimeField(auto_now_add=True)
+    sender_confirmed = models.BooleanField(default=False)
+    recipient_confirmed = models.BooleanField(default=False)    
 
     class Meta:
         ordering = ['-created_at', '-id']
