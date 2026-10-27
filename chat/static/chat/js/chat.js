@@ -2,11 +2,24 @@
 (function () {
   const toast = (msg, kind) => window.showToast(msg, kind);
 
-  /* Toast setelah hapus percakapan (halaman dimuat dengan ?deleted=1) */
+  /* Notifikasi setelah redirect (?deleted=1, ?blocked=1, dll.) */
+  const NOTICES = {
+    deleted: ['Percakapan dihapus', 'success'],
+    blocked: ['Pengguna diblokir', 'success'],
+    unblocked: ['Blokir dibuka', 'success'],
+    accepted: ['Percakapan diterima', 'success'],
+    cannot_start: ['Tidak dapat memulai percakapan dengan pengguna ini.', 'error'],
+  };
   const params = new URLSearchParams(window.location.search);
-  if (params.get('deleted')) {
-    toast('Percakapan dihapus');
-    params.delete('deleted');
+  let noticed = false;
+  Object.keys(NOTICES).forEach((key) => {
+    if (params.get(key)) {
+      toast(NOTICES[key][0], NOTICES[key][1]);
+      params.delete(key);
+      noticed = true;
+    }
+  });
+  if (noticed) {
     const rest = params.toString();
     history.replaceState(null, '', window.location.pathname + (rest ? '?' + rest : ''));
   }
@@ -40,9 +53,10 @@
     const { xhr, requestConfig } = e.detail;
     if (requestConfig && requestConfig.verb === 'get') return;
     const text = xhr.responseText || '';
+    const plain = text && !text.startsWith('<');
     if (xhr.status === 413) toast('File terlalu besar untuk server.', 'error');
-    else if (xhr.status === 403) toast('Kamu tidak punya izin untuk aksi ini.', 'error');
-    else if (xhr.status === 400 && text && !text.startsWith('<')) toast(text.slice(0, 200), 'error');
+    else if (xhr.status === 403) toast(plain ? text.slice(0, 200) : 'Kamu tidak punya izin untuk aksi ini.', 'error');
+    else if (xhr.status === 400 && plain) toast(text.slice(0, 200), 'error');
     else toast(`Terjadi kesalahan (kode ${xhr.status}).`, 'error');
   });
   document.body.addEventListener('htmx:sendError', (e) => {
@@ -53,8 +67,8 @@
 
   /* ---- Bagian berikut hanya untuk halaman dengan chat room terbuka ---- */
   const box = document.getElementById('messages');
-  const form = document.getElementById('message-form');
-  if (!box || !form) return;
+  const form = document.getElementById('message-form'); // tidak ada kalau salah satu pihak memblokir
+  if (!box) return;
 
   let stick = true;
   const toBottom = () => { box.scrollTop = box.scrollHeight; };
@@ -65,13 +79,15 @@
   box.addEventListener('scroll', () => {
     stick = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
   });
-  form.addEventListener('submit', () => { stick = true; });
-  form.addEventListener('htmx:afterRequest', (e) => {
-    if (e.detail.successful) {
-      form.reset();
-      clearReply();
-    }
-  });
+  if (form) {
+    form.addEventListener('submit', () => { stick = true; });
+    form.addEventListener('htmx:afterRequest', (e) => {
+      if (e.detail.successful) {
+        form.reset();
+        clearReply();
+      }
+    });
+  }
   document.body.addEventListener('htmx:afterSwap', (e) => {
     if (e.target === box && stick) toBottom();
   });
@@ -80,7 +96,7 @@
   });
 
   /* Kolom pesan: Enter kirim, Shift+Enter baris baru, tinggi otomatis, hitungan karakter */
-  const msgInput = form.querySelector('textarea[name="content"]');
+  const msgInput = form ? form.querySelector('textarea[name="content"]') : null;
   const counter = document.getElementById('char-count');
   if (msgInput) {
     const grow = () => {
@@ -133,6 +149,53 @@
     const btn = e.target.closest('[data-reply-id]');
     if (btn) setReply(btn.dataset.replyId, btn.dataset.replyWho, btn.dataset.replyText);
   });
+
+  /* Banner keselamatan: bisa ditutup, diingat per percakapan */
+  const safety = document.getElementById('safety-banner');
+  if (safety) {
+    const key = 'chat-safety-dismissed-' + (safety.dataset.conv || '');
+    try {
+      if (localStorage.getItem(key) === '1') safety.classList.add('is-gone');
+    } catch (err) { /* penyimpanan browser dimatikan: banner tetap tampil */ }
+    const dismiss = document.getElementById('safety-dismiss');
+    if (dismiss) {
+      dismiss.addEventListener('click', () => {
+        safety.classList.add('is-gone');
+        try { localStorage.setItem(key, '1'); } catch (err) { /* abaikan */ }
+      });
+    }
+  }
+
+  /* Menu titik tiga di header: tutup setelah satu pilihan diklik */
+  const roomMenu = document.getElementById('room-menu');
+  if (roomMenu) {
+    roomMenu.querySelectorAll('.menu-item').forEach((b) => {
+      b.addEventListener('click', () => roomMenu.removeAttribute('open'));
+    });
+  }
+
+  /* Modal laporan: satu modal untuk laporan pengguna dan laporan pesan */
+  const reportModal = document.getElementById('report-modal');
+  const reportForm = document.getElementById('report-form');
+  if (reportModal && reportForm) {
+    const reportMsgId = document.getElementById('report-message-id');
+    const reportTarget = document.getElementById('report-target');
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-report-message]');
+      if (!btn) return;
+      reportMsgId.value = btn.dataset.reportMessage || '';
+      reportTarget.textContent = btn.dataset.reportLabel
+        ? `Melaporkan pesan: "${btn.dataset.reportLabel}"`
+        : `Melaporkan ${reportModal.dataset.user || 'pengguna'}`;
+      reportModal.showPopover();
+    });
+    reportForm.addEventListener('htmx:afterRequest', (e) => {
+      if (!e.detail.successful) return; // error ditampilkan oleh penanganan error umum
+      reportForm.reset();
+      if (reportModal.matches(':popover-open')) reportModal.hidePopover();
+      toast('Laporan terkirim. Terima kasih.');
+    });
+  }
 
   /* Menu lampiran: tutup setelah satu pilihan diklik */
   const attachMenu = document.getElementById('attach-menu');
