@@ -115,3 +115,5 @@
 .quick-chip:hover { background: var(--chat-cream); border-color: var(--chat-green); }
 .quick-chip:active { transform: scale(.96); }
 @media (max-width: 767px) { .quick-chip { padding: .5rem .9rem; font-size: .85rem; } }
+
+.chat-root .is-gone { display: none !important; }
