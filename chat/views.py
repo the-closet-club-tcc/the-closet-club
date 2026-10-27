@@ -58,7 +58,9 @@ def _recent_messages(conversation, user):
     """200 pesan terakhir yang masih terlihat oleh user, urut lama ke baru."""
     qs = conversation.visible_messages(user).select_related(
         'sender', 'reply_to', 'reply_to__sender',
-    )    
+        'swap_request__sender', 'swap_request__recipient',
+        'swap_request__requested_item', 'swap_request__offered_item',
+    )  
     return list(reversed(qs.order_by('-created_at', '-id')[:MAX_MESSAGES]))
 
 

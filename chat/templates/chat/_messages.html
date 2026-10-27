@@ -21,6 +21,49 @@
                class="mt-2 inline-block rounded-lg border border-[#344536] px-3 py-1 text-sm text-[#344536]">Buka di Peta</a>
           </div>
         </div>
+      {% elif m.message_type == 'swap' %}
+        <div class="overflow-hidden rounded-xl border border-[#E8E0D0] bg-white">
+          <div class="flex items-center gap-2 bg-[#344536] px-3 py-2 text-sm text-white">
+            <i class="bi bi-arrow-left-right"></i>
+            <span class="font-semibold">{{ m.content }}</span>
+          </div>
+          {% with sr=m.swap_request %}
+          {% if sr %}
+          <div class="grid grid-cols-2 gap-3 p-3">
+            <div class="min-w-0">
+              <p class="mb-1 text-[10px] uppercase tracking-widest text-gray-500">Diminta</p>
+              {% with item=sr.requested_item %}
+                {% if item %}
+                <a href="{{ item.get_absolute_url }}" class="block">
+                  {% if item.photo %}<img src="{{ item.photo.url }}" alt="{{ item.name }}" class="h-28 w-full rounded-lg object-cover">
+                  {% else %}<div class="flex h-28 items-center justify-center rounded-lg bg-[#DCE3D8] text-[#344536]"><i class="bi bi-handbag text-2xl"></i></div>{% endif %}
+                  <p class="mt-1 truncate text-sm font-semibold">{{ item.name }}</p>
+                </a>
+                {% else %}<p class="text-sm italic text-gray-500">Item tidak tersedia</p>{% endif %}
+              {% endwith %}
+            </div>
+            <div class="min-w-0">
+              <p class="mb-1 text-[10px] uppercase tracking-widest text-gray-500">Ditawarkan</p>
+              {% with item=sr.offered_item %}
+                {% if item %}
+                <a href="{{ item.get_absolute_url }}" class="block">
+                  {% if item.photo %}<img src="{{ item.photo.url }}" alt="{{ item.name }}" class="h-28 w-full rounded-lg object-cover">
+                  {% else %}<div class="flex h-28 items-center justify-center rounded-lg bg-[#DCE3D8] text-[#344536]"><i class="bi bi-handbag text-2xl"></i></div>{% endif %}
+                  <p class="mt-1 truncate text-sm font-semibold">{{ item.name }}</p>
+                </a>
+                {% else %}<p class="text-sm italic text-gray-500">Belum ada</p>{% endif %}
+              {% endwith %}
+            </div>
+          </div>
+          <div class="flex items-center justify-between border-t border-[#E8E0D0] px-3 py-2 text-xs text-gray-600">
+            <span>Status: <strong>{{ sr.get_status_display }}</strong></span>
+            <span>oleh {{ sr.sender.username }}</span>
+          </div>
+          {% else %}
+          <p class="p-3 text-sm italic text-gray-500">Permintaan swap tidak tersedia</p>
+          {% endif %}
+          {% endwith %}
+        </div>        
       {% elif m.message_type == 'image' %}
         <a href="{% url 'chat:attachment' m.id %}" target="_blank" rel="noopener">
           <img src="{% url 'chat:attachment' m.id %}" alt="{{ m.attachment_name }}"
@@ -66,8 +109,10 @@
                     hx-get="{% url 'chat:edit' m.id %}"
                     hx-target="closest .msg" hx-swap="outerHTML"><i class="bi bi-pencil"></i> Edit</button>
             {% endif %}
+            {% if m.message_type != 'swap' %}
             <button type="button" class="msg-action msg-action--danger"
                     data-confirm-url="{% url 'chat:delete' m.id %}"><i class="bi bi-trash3"></i> Hapus</button>
+            {% endif %}
           {% endif %}
         </span>
         <span>{{ m.created_at|time:"H:i" }}{% if m.is_edited %} · diedit{% endif %}</span>
