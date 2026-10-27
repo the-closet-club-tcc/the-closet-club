@@ -47,7 +47,8 @@ class Message(models.Model):
         TEXT = 'text', 'Teks'
         LOCATION = 'location', 'Lokasi'
         IMAGE = 'image', 'Foto'
-        FILE = 'file', 'Dokumen'        
+        FILE = 'file', 'Dokumen'
+        SWAP = 'swap', 'Permintaan swap'        
 
     conversation = models.ForeignKey(
         Conversation, on_delete=models.CASCADE, related_name='messages',
@@ -76,6 +77,10 @@ class Message(models.Model):
         'self', null=True, blank=True, on_delete=models.SET_NULL, related_name='replies',
     )
     has_reply = models.BooleanField(default=False)
+    swap_request = models.ForeignKey(
+        'swap.SwapRequest', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='chat_messages',
+    )    
 
     def preview_text(self):
         if self.message_type == self.MessageType.LOCATION:
@@ -84,10 +89,19 @@ class Message(models.Model):
             return 'Foto'
         if self.message_type == self.MessageType.FILE:
             return f'Dokumen: {self.attachment_name}'
+        if self.message_type == self.MessageType.SWAP:
+            return 'Permintaan swap'        
         return self.content    
 
     class Meta:
         ordering = ['created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['swap_request'],
+                condition=models.Q(message_type='swap'),
+                name='unique_swap_card_per_request',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.sender}: {self.content[:30]}'
