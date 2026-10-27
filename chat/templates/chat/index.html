@@ -66,9 +66,8 @@
           </p>
         </div>
         <div class="flex shrink-0 items-center gap-2">
-          {# TODO: arahkan ke closet publik user ini kalau modul Closet menyediakan URL-nya #}
           <a href="{% url 'closet:user_closet' other_user.username %}"
-            class="hidden rounded-lg border border-[#344536] px-3 py-2 text-sm text-[#344536] sm:inline-block">Lihat Closet</a>
+            class="rounded-lg border border-[#344536] px-3 py-2 text-xs text-[#344536] sm:text-sm">Lihat Closet</a>
           <a href="{% url 'swap:index' %}"
              class="rounded-lg bg-[#344536] px-3 py-2 text-xs text-white sm:text-sm">Ajukan Swap</a>
           <details id="room-menu" class="relative">
