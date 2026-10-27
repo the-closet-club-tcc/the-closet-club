@@ -2,7 +2,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Q
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods, require_POST
@@ -177,3 +177,107 @@ def swap_requests(request, direction='incoming'):
     return render(request, 'swap/requests.html', {
         'swap_requests': requests, 'is_incoming': is_incoming,
     })
+
+S = SwapRequest.Status
+
+def _back_to_chat(sr):
+    conv = Conversation.objects.filter(
+        Q(user1_id=sr.sender_id, user2_id=sr.recipient_id)
+        | Q(user1_id=sr.recipient_id, user2_id=sr.sender_id)
+    ).first()
+    return redirect('chat:room', conversation_id=conv.pk) if conv else redirect('swap:requests_incoming')
+
+
+def _lock(request, pk):
+    sr = get_object_or_404(
+        SwapRequest.objects.select_for_update(), pk=pk
+    )
+    if request.user.pk not in (sr.sender_id, sr.recipient_id):
+        raise Http404
+    return sr
+
+
+@login_required(login_url='login')
+@require_POST
+def decline_swap(request, pk):
+    with transaction.atomic():
+        sr = _lock(request, pk)
+        if sr.status in (S.PENDING, S.COUNTER_PROPOSED):
+            sr.status = S.DECLINED
+            sr.save(update_fields=['status'])
+            messages.success(request, 'Swap request declined.')
+    return _back_to_chat(sr)
+
+
+@login_required(login_url='login')
+@never_cache
+@require_http_methods(['GET', 'POST'])
+def choose_counter(request, pk):
+    # Penerima memilih barang balasan dari closet pengirim
+    sr = get_object_or_404(
+        SwapRequest.objects.select_related('sender', 'requested_item'),
+        pk=pk, recipient=request.user, status=S.PENDING,
+    )
+    choices = Clothing.objects.filter(owner=sr.sender, status__in=SWAP_STATUSES)
+    if request.method == 'POST':
+        with transaction.atomic():
+            sr = SwapRequest.objects.select_for_update().get(pk=pk)
+            picked = Clothing.objects.select_for_update().filter(
+                pk=request.POST.get('offered_item'),
+                owner_id=sr.sender_id, status__in=SWAP_STATUSES,
+            ).first()
+            if sr.status == S.PENDING and picked:
+                sr.offered_item = picked
+                sr.status = S.COUNTER_PROPOSED
+                sr.save(update_fields=['offered_item', 'status'])
+                messages.success(request, 'Counter offer sent.')
+                return _back_to_chat(sr)
+        messages.error(request, 'That piece is not available. Choose another.')
+    return render(request, 'swap/choose_counter.html', {'swap_request': sr, 'choices': choices})
+
+
+@login_required(login_url='login')
+@require_POST
+def agree_swap(request, pk):
+    with transaction.atomic():
+        sr = _lock(request, pk)
+        if sr.status != S.COUNTER_PROPOSED or sr.sender_id != request.user.pk:
+            raise Http404
+        a, b = sr.requested_item, sr.offered_item
+        pieces = list(Clothing.objects.select_for_update().filter(pk__in=[a.pk, b.pk]))
+        if len(pieces) != 2 or any(p.status not in SWAP_STATUSES for p in pieces):
+            messages.error(request, 'One of the pieces is no longer available.')
+            return _back_to_chat(sr)
+        sr.status = S.AGREED
+        sr.save(update_fields=['status'])
+        # BR-09: tolak request lain yang memakai barang yang sama
+        SwapRequest.objects.exclude(pk=sr.pk).filter(
+            status__in=[S.PENDING, S.COUNTER_PROPOSED],
+        ).filter(
+            Q(requested_item__in=[a, b]) | Q(offered_item__in=[a, b])
+        ).update(status=S.DECLINED)
+        messages.success(request, 'Swap agreed. Complete the exchange before leaving a review.')
+    return _back_to_chat(sr)
+
+
+@login_required(login_url='login')
+@require_POST
+def complete_swap(request, pk):
+    with transaction.atomic():
+        sr = _lock(request, pk)
+        if sr.status != S.AGREED:
+            raise Http404
+        if request.user.pk == sr.sender_id:
+            sr.sender_confirmed = True
+        else:
+            sr.recipient_confirmed = True
+        if sr.sender_confirmed and sr.recipient_confirmed:
+            sr.status = S.COMPLETED
+            Clothing.objects.filter(
+                pk__in=[sr.requested_item_id, sr.offered_item_id]
+            ).update(status=Clothing.Status.SWAPPED)
+            messages.success(request, 'Swap completed.')
+        else:
+            messages.success(request, 'Confirmed. Waiting for the other person.')
+        sr.save()
+    return _back_to_chat(sr)

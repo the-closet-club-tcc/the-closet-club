@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="max-w-2xl mx-auto p-4">
+  <h1 class="text-xl font-bold">Choose a piece from {{ swap_request.sender.username }}'s closet</h1>
+  <form method="post">{% csrf_token %}
+    {% for item in choices %}
+      <label class="flex items-center gap-3 border rounded p-2 my-2">
+        <input type="radio" name="offered_item" value="{{ item.pk }}" required>
+        {% if item.image %}<img src="{{ item.image.url }}" class="w-16 h-16 object-cover rounded">{% endif %}
+        <span>{{ item.name }}</span>
+      </label>
+    {% empty %}<p>No pieces available to offer.</p>{% endfor %}
+    <button class="btn">Send counter offer</button>
+  </form>
+</div>
+{% endblock %}
