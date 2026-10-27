@@ -1,0 +1,19 @@
+<div class="swap-request-item">
+    <span class="swap-eyebrow">{{ label }}</span>
+    {% if available %}
+    <div class="swap-request-piece">
+        {% if item.photo %}
+        <img src="{{ item.photo.url }}" alt="{{ item.name }}" loading="lazy">
+        {% else %}
+        <span class="swap-request-placeholder">No photo</span>
+        {% endif %}
+        <div>
+            <h3>{{ item.name }}</h3>
+            <p>Size {{ item.get_size_display }} &middot; {{ item.get_condition_display }}</p>
+            <p>{{ item.get_status_display }}</p>
+        </div>
+    </div>
+    {% else %}
+    <p class="swap-unavailable">Item no longer available</p>
+    {% endif %}
+</div>

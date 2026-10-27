@@ -4,7 +4,7 @@
 {% block title %}Swap | The Closet Club{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'css/swap.css' %}">
+<link rel="stylesheet" href="{% static 'css/swap.css' %}?v=13">
 {% endblock %}
 
 {% block content %}
@@ -17,19 +17,39 @@
             <p>Discover pre-loved clothes and find your next swap.</p>
         </header>
 
-        <div class="swap-deck" id="swap-deck">
+        {% include 'swap/_navigation.html' with active='discover' %}
+
+        <nav class="swap-filters" aria-label="Swap options">
+            {% for filter in filters %}
+            <a href="{% url 'swap:index' %}{% if filter.value %}?status={{ filter.value }}{% endif %}"
+                {% if current_status == filter.value %}aria-current="page"{% endif %}>
+                {{ filter.label }}
+            </a>
+            {% endfor %}
+        </nav>
+
+        {% if user.is_authenticated %}<div hidden>{% csrf_token %}</div>{% endif %}
+        <div class="swap-deck" id="swap-deck" data-authenticated="{{ user.is_authenticated|yesno:'true,false' }}"
+            data-login-url="{% url 'login' %}">
 
             {% for item in items %}
-            <article class="swap-card" data-name="{{ item.name }}" data-description="{{ item.description }}"
-                data-size="{{ item.size }}" data-condition="{{ item.condition }}" data-owner="{{ item.owner }}">
+            <article class="swap-card" data-id="{{ item.pk }}" data-name="{{ item.name }}" data-description="{{ item.description }}"
+                data-size="{{ item.get_size_display }}" data-condition="{{ item.get_condition_display }}"
+                data-owner="{{ item.owner.username }}" data-offer="{{ item.get_status_display }}"
+                data-save-url="{% url 'swap:save_interest' item.pk %}">
 
                 <div class="swap-image">
-                    <img src="{% static item.image %}" alt="{{ item.name }}" draggable="false">
+                    {% if item.photo %}
+                    <img src="{{ item.photo.url }}" alt="{{ item.name }}" draggable="false">
+                    {% else %}
+                    <span class="swap-no-photo">No photo available</span>
+                    {% endif %}
+                    <span class="swap-offer">{{ item.get_status_display }}</span>
                 </div>
 
                 <div class="swap-card-content">
                     <h2>{{ item.name }}</h2>
-                    <p>{{ item.description }}</p>
+                    <p>Size {{ item.get_size_display }} &middot; {{ item.get_condition_display }}</p>
 
                     <div class="swap-actions">
                         <button type="button" class="swap-reject" aria-label="Skip item">
@@ -48,9 +68,19 @@
             </article>
             {% endfor %}
 
-            <div class="swap-finished" id="swap-finished" hidden>
-                <h2>You're all caught up!</h2>
-                <p>No more items to discover right now.</p>
+            <div class="swap-finished" id="swap-finished" {% if items %}hidden{% endif %}>
+                <h2>{% if items or has_interests %}You're all caught up!{% elif current_status %}No matching items{% else %}No swap items yet{% endif %}</h2>
+                <p id="swap-finished-message">{% if has_interests %}Revisit your saved pieces in Interested items, or explore other swap options.{% elif items %}Visit your closet and add a piece for your next swap.{% elif current_status %}Try all swap options to see other available pieces.{% else %}Check back later, or offer a piece from your closet.{% endif %}</p>
+                <div class="swap-finished-actions">
+                    <button type="button" class="swap-review" id="review-skipped" hidden>
+                        Review skipped items
+                    </button>
+                    <a href="{% url 'swap:interested' %}">View interested items</a>
+                    {% if current_status %}
+                    <a href="{% url 'swap:index' %}">Explore all swap options</a>
+                    {% endif %}
+                    <a href="{% url 'closet:my_closet' %}">Go to My Closet &rarr;</a>
+                </div>
             </div>
 
         </div>
@@ -60,17 +90,10 @@
     </div>
 </section>
 
-<dialog class="swap-modal" id="swap-modal">
-    <h2 id="detail-name"></h2>
-    <p id="detail-description"></p>
-    <p id="detail-size"></p>
-    <p id="detail-condition"></p>
-    <p id="detail-owner"></p>
-    <button type="button" id="close-details">Close</button>
-</dialog>
+{% include 'swap/_details.html' %}
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/swap.js' %}"></script>
+<script src="{% static 'js/swap.js' %}?v=5"></script>
 
 {% endblock %}

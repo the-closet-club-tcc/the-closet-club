@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Interested items | The Closet Club{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/swap.css' %}?v=13">
+{% endblock %}
+
+{% block content %}
+<section class="swap-page">
+    <div class="swap-container">
+        <header class="swap-header">
+            <h1>Interested items</h1>
+            <p>Your saved pieces. Find a favorite and offer a piece from your closet.</p>
+        </header>
+
+        {% include 'swap/_navigation.html' with active='interested' %}
+
+        {% if interests %}
+        <div class="swap-saved-grid">
+            {% for interest in interests %}
+            <article class="swap-saved-card"
+                {% if interest.available %}
+                data-name="{{ interest.item.name }}" data-description="{{ interest.item.description }}"
+                data-size="{{ interest.item.get_size_display }}" data-condition="{{ interest.item.get_condition_display }}"
+                data-owner="{{ interest.item.owner.username }}" data-offer="{{ interest.item.get_status_display }}"
+                {% endif %}>
+                {% if interest.available %}
+                <div class="swap-image">
+                    {% if interest.item.photo %}
+                    <img src="{{ interest.item.photo.url }}" alt="{{ interest.item.name }}" loading="lazy">
+                    {% else %}
+                    <span class="swap-no-photo">No photo available</span>
+                    {% endif %}
+                    <span class="swap-offer">{{ interest.item.get_status_display }}</span>
+                </div>
+                {% endif %}
+
+                <div class="swap-card-content">
+                    {% if interest.available %}
+                    <h2>{{ interest.item.name }}</h2>
+                    <p>Size {{ interest.item.get_size_display }} &middot; {{ interest.item.get_condition_display }}</p>
+                    {% else %}
+                    <h2>Item no longer available</h2>
+                    <p>This piece is no longer offered for swap. You can remove it from your list.</p>
+                    {% endif %}
+
+                    {% if interest.request_pending %}
+                    <form method="post" action="{% url 'swap:propose' interest.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="swap-propose-link swap-secondary">Continue to chat</button>
+                    </form>
+                    {% elif interest.available %}
+                    <a class="swap-propose-link swap-primary" href="{% url 'swap:propose' interest.pk %}">Propose swap</a>
+                    {% endif %}
+
+                    <div class="swap-saved-actions">
+                        {% if interest.available %}
+                        <button type="button" class="swap-details">View Details</button>
+                        {% endif %}
+                        <form method="post" action="{% url 'swap:remove_interest' interest.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="swap-remove" aria-label="Remove {% if interest.available %}{{ interest.item.name }}{% else %}unavailable item{% endif %} from interested items">Remove</button>
+                        </form>
+                    </div>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="swap-saved-empty swap-finished">
+            <h2>No saved pieces yet</h2>
+            <p>Swipe right on a piece you like. It will be saved here for your next visit.</p>
+            <div class="swap-finished-actions">
+                <a href="{% url 'swap:index' %}">Discover pieces &rarr;</a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% include 'swap/_details.html' %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/swap.js' %}?v=5"></script>
+{% endblock %}

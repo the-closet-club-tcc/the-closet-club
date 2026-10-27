@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Propose a swap | The Closet Club{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/swap.css' %}?v=14">
+{% endblock %}
+
+{% block content %}
+<section class="swap-page swap-proposal-page">
+    <div class="swap-container">
+        <header class="swap-header">
+            <h1>Propose a swap</h1>
+            <p>A piece you love, for a piece of yours.</p>
+        </header>
+        {% include 'swap/_navigation.html' with active='interested' %}
+
+        <div class="swap-proposal{% if not available %} swap-proposal-unavailable{% endif %}">
+            {% if available %}
+            <article class="swap-proposal-item" aria-labelledby="requested-piece-name">
+                <div class="swap-image">
+                    {% if item.photo %}
+                    <img src="{{ item.photo.url }}" alt="{{ item.name }}">
+                    {% else %}
+                    <span class="swap-no-photo">No photo available</span>
+                    {% endif %}
+                </div>
+                <div class="swap-proposal-summary">
+                    <span class="swap-eyebrow">You would like</span>
+                    <h2 id="requested-piece-name">{{ item.name }}</h2>
+                    <p class="swap-proposal-owner">From {{ item.owner.username }}</p>
+                    <p class="swap-proposal-meta">Size {{ item.get_size_display }} <span aria-hidden="true">&middot;</span> {{ item.get_condition_display }}</p>
+                    <span class="swap-proposal-offer">{{ item.get_status_display }}</span>
+                </div>
+            </article>
+            <form method="post" class="swap-proposal-form">
+                {% csrf_token %}
+                <h2>Choose your offer</h2>
+                <p id="offer-help">Pick a piece from your closet to offer {{ item.owner.username }}.</p>
+                {% if form.non_field_errors %}
+                <div class="swap-form-errors" role="alert">{{ form.non_field_errors }}</div>
+                {% endif %}
+                {% if has_offers %}
+                <label for="{{ form.offered_item.id_for_label }}">{{ form.offered_item.label }}</label>
+                {{ form.offered_item }}
+                <div id="offer-errors" class="swap-form-errors" {% if form.offered_item.errors %}role="alert"{% endif %}>{{ form.offered_item.errors }}</div>
+                <p class="swap-proposal-hint">Available pieces marked Open to swap or Swap + top-up.</p>
+                <div class="swap-proposal-note">
+                    <p>Your offer will be saved, then you'll go straight to chat with {{ item.owner.username }}.</p>
+                    <p>Discuss the exchange and any top-up together. Neither piece is reserved yet.</p>
+                </div>
+                <div class="swap-proposal-actions">
+                    <button type="submit" class="swap-primary">Continue to chat</button>
+                    <a class="swap-back-link" href="{% url 'swap:interested' %}">Back to interested items</a>
+                </div>
+                {% else %}
+                <div class="swap-proposal-note">
+                    <p>No available pieces yet. Add a piece in My Closet or mark one as Open to swap to get started.</p>
+                </div>
+                <div class="swap-proposal-actions">
+                    <a href="{% url 'closet:my_closet' %}" class="swap-primary">Go to My Closet</a>
+                    <a class="swap-back-link" href="{% url 'swap:interested' %}">Back to interested items</a>
+                </div>
+                {% endif %}
+            </form>
+            {% else %}
+            <div class="swap-proposal-form">
+                <h2>This piece is no longer available</h2>
+                <p>Its availability has changed. Choose another piece from your saved items.</p>
+                <a class="swap-back-link" href="{% url 'swap:interested' %}">Back to interested items &rarr;</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}
