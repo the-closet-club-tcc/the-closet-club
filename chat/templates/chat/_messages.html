@@ -74,7 +74,7 @@
                 <span class="text-xs italic text-gray-500">Menunggu penerima memilih barang</span>
               {% endif %}
 
-            {% elif sr.status == 'counter_proposed' %}
+            {% elif sr.status == 'countered' %}
               {% if me == sr.sender_id %}
                 <form method="post" action="{% url 'swap:agree' sr.pk %}">{% csrf_token %}
                   <button class="rounded-lg bg-[#344536] px-3 py-1 text-sm text-white">Agree</button>
@@ -86,8 +86,8 @@
                 <span class="text-xs italic text-gray-500">Menunggu konfirmasi pengirim</span>
               {% endif %}
 
-            {% elif sr.status == 'agreed' %}
-              {% if me == sr.sender_id and sr.sender_confirmed or me == sr.recipient_id and sr.recipient_confirmed %}
+            {% elif sr.status == 'accepted' %}
+              {% if me == sr.sender_id and sr.sender_confirmed_at or me == sr.recipient_id and sr.recipient_confirmed_at %}
                 <span class="text-xs italic text-gray-500">Menunggu pihak lain mengonfirmasi</span>
               {% else %}
                 <form method="post" action="{% url 'swap:complete' sr.pk %}">{% csrf_token %}
