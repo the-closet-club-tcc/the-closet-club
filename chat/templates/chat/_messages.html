@@ -94,6 +94,9 @@
                   <button class="rounded-lg bg-[#344536] px-3 py-1 text-sm text-white">Sudah ditukar</button>
                 </form>
               {% endif %}
+              <form method="post" action="{% url 'swap:cancel' sr.pk %}">{% csrf_token %}
+                <button class="rounded-lg border border-red-300 px-3 py-1 text-sm text-red-600">Cancel</button>
+              </form>              
             {% endif %}
           </div>
           {% endwith %}          

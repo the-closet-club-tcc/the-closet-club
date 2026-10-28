@@ -9,13 +9,18 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from closet.models import Clothing
 from chat.models import Conversation
-from chat.services import ensure_swap_card
+from chat.services import ensure_swap_card, post_swap_update, users_blocked
 
 from .forms import SwapRequestForm
 from .models import Interest, SwapRequest
 
 SWAP_STATUSES = (Clothing.Status.BARTER, Clothing.Status.TOP_UP)
 
+ACTIVE_STATUSES = (
+    SwapRequest.Status.PENDING,
+    SwapRequest.Status.COUNTER_PROPOSED,
+    SwapRequest.Status.AGREED,
+)
 
 @login_required(login_url='login')
 @never_cache
@@ -79,13 +84,19 @@ def save_interest(request, pk):
     item = Clothing.objects.filter(pk=pk, status__in=SWAP_STATUSES).exclude(owner=request.user).first()
     if item is None:
         return JsonResponse({'error': 'This item is no longer available for swap.'}, status=404)
+    if users_blocked(request.user.pk, item.owner_id):
+        return JsonResponse({'error': 'You cannot send a swap request to this user.'}, status=403)    
     with transaction.atomic():
         Interest.objects.get_or_create(user=request.user, item=item)
-        swap_request, _ = SwapRequest.objects.get_or_create(
-            sender=request.user, requested_item=item,
-            status=SwapRequest.Status.PENDING,
-            defaults={'recipient': item.owner},
-        )
+        swap_request = SwapRequest.objects.filter(
+            sender=request.user, requested_item=item, status__in=ACTIVE_STATUSES,
+        ).first()
+        if swap_request is None:
+            swap_request, _ = SwapRequest.objects.get_or_create(
+                sender=request.user, requested_item=item,
+                status=SwapRequest.Status.PENDING,
+                defaults={'recipient': item.owner},
+            )
         conversation = _get_or_create_conversation(swap_request.sender_id, swap_request.recipient_id)
         ensure_swap_card(conversation, swap_request)
     return JsonResponse({'saved': True})
@@ -96,13 +107,6 @@ def save_interest(request, pk):
 def remove_interest(request, pk):
     Interest.objects.filter(pk=pk, user=request.user).delete()
     return redirect('swap:interested')
-
-ACTIVE_STATUSES = (
-    SwapRequest.Status.PENDING,
-    SwapRequest.Status.COUNTER_PROPOSED,
-    SwapRequest.Status.AGREED,
-)
-
 
 @login_required(login_url='login')
 @never_cache
@@ -121,6 +125,9 @@ def propose_swap(request, pk):
             if item.status not in SWAP_STATUSES or item.owner_id == request.user.pk:
                 messages.error(request, 'This piece is no longer available for swap.')
                 return redirect('swap:interested')
+            if users_blocked(request.user.pk, item.owner_id):
+                messages.error(request, 'You cannot send a swap request to this user.')
+                return redirect('swap:interested')            
             swap_request = SwapRequest.objects.create(
                 sender=request.user, recipient=item.owner, requested_item=item,
             )
@@ -139,16 +146,20 @@ def swap_requests(request, direction='incoming'):
         **({'recipient': request.user} if is_incoming else {'sender': request.user}),
     ).select_related('sender', 'recipient', 'offered_item', 'requested_item')
     for swap_request in requests:
-        swap_request.offered_available = (
-            swap_request.offered_item is not None
-            and swap_request.offered_item.status in SWAP_STATUSES
-            and swap_request.offered_item.owner_id == swap_request.sender_id
-        )
-        swap_request.requested_available = (
-            swap_request.requested_item is not None
-            and swap_request.requested_item.status in SWAP_STATUSES
-            and swap_request.requested_item.owner_id == swap_request.recipient_id
-        )
+        if swap_request.status in ACTIVE_STATUSES:
+            swap_request.offered_available = (
+                swap_request.offered_item is None
+                or (swap_request.offered_item.status in SWAP_STATUSES
+                    and swap_request.offered_item.owner_id == swap_request.sender_id)
+            )
+            swap_request.requested_available = (
+                swap_request.requested_item is not None
+                and swap_request.requested_item.status in SWAP_STATUSES
+                and swap_request.requested_item.owner_id == swap_request.recipient_id
+            )
+        else:
+            swap_request.offered_available = swap_request.offered_item is not None
+            swap_request.requested_available = swap_request.requested_item is not None
     return render(request, 'swap/requests.html', {
         'swap_requests': requests, 'is_incoming': is_incoming,
     })
@@ -162,6 +173,9 @@ def _back_to_chat(sr):
     ).first()
     return redirect('chat:room', conversation_id=conv.pk) if conv else redirect('swap:requests_incoming')
 
+def _notify(sr, actor, text):
+    conv = _get_or_create_conversation(sr.sender_id, sr.recipient_id)
+    post_swap_update(conv, actor, text)
 
 def _lock(request, pk):
     sr = get_object_or_404(
@@ -181,6 +195,7 @@ def decline_swap(request, pk):
             sr.status = S.DECLINED
             sr.save(update_fields=['status'])
             messages.success(request, 'Swap request declined.')
+            _notify(sr, request.user, 'Swap request declined.')
     return _back_to_chat(sr)
 
 
@@ -206,6 +221,7 @@ def choose_counter(request, pk):
                 sr.status = S.COUNTER_PROPOSED
                 sr.save(update_fields=['offered_item', 'status'])
                 messages.success(request, 'Counter offer sent.')
+                _notify(sr, request.user, f'Counter offer sent: {picked.name}. Waiting for your confirmation.')
                 return _back_to_chat(sr)
         messages.error(request, 'That piece is not available. Choose another.')
     return render(request, 'swap/choose_counter.html', {'swap_request': sr, 'choices': choices})
@@ -232,6 +248,7 @@ def agree_swap(request, pk):
             Q(requested_item__in=[a, b]) | Q(offered_item__in=[a, b])
         ).update(status=S.DECLINED)
         messages.success(request, 'Swap agreed. Complete the exchange before leaving a review.')
+        _notify(sr, request.user, 'Swap agreed. Complete the exchange when you meet.')
     return _back_to_chat(sr)
 
 
@@ -252,7 +269,34 @@ def complete_swap(request, pk):
                 pk__in=[sr.requested_item_id, sr.offered_item_id]
             ).update(status=Clothing.Status.SWAPPED)
             messages.success(request, 'Swap completed.')
+            _notify(sr, request.user, 'Swap completed.')
         else:
             messages.success(request, 'Confirmed. Waiting for the other person.')
+            _notify(sr, request.user, 'I have confirmed the exchange.')
         sr.save()
     return _back_to_chat(sr)
+
+@login_required(login_url='login')
+@require_POST
+def cancel_swap(request, pk):
+    with transaction.atomic():
+        sr = _lock(request, pk)
+        if sr.status == S.AGREED:
+            sr.status = S.CANCELLED
+            sr.sender_confirmed = False
+            sr.recipient_confirmed = False
+            sr.save(update_fields=['status', 'sender_confirmed', 'recipient_confirmed'])
+            messages.success(request, 'Swap cancelled.')
+            _notify(sr, request.user, 'Swap cancelled.')
+    return _back_to_chat(sr)
+
+@login_required(login_url='login')
+def open_request_chat(request, pk):
+    sr = get_object_or_404(SwapRequest, pk=pk)
+    if request.user.pk not in (sr.sender_id, sr.recipient_id):
+        raise Http404
+    conv = _get_or_create_conversation(sr.sender_id, sr.recipient_id)
+    if users_blocked(sr.sender_id, sr.recipient_id):
+        raise Http404    
+    ensure_swap_card(conv, sr)
+    return redirect('chat:room', conversation_id=conv.pk)
