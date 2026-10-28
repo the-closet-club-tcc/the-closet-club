@@ -10,97 +10,6 @@
 {% block content %}
 <div class="feed-page">
 
-    <!-- HERO BANNER -->
-    <section class="feed-hero" aria-labelledby="feed-hero-title">
-
-        <div class="feed-hero-content">
-
-            <p class="feed-hero-kicker">
-                <span class="feed-hero-dot"></span>
-                THE COMMUNITY FEED
-            </p>
-
-            <h1 id="feed-hero-title">
-                See what the club<br>
-                is <em>wearing.</em>
-            </h1>
-
-            <p class="feed-hero-description">
-                Browse outfits from the community, find pieces you love,
-                and swap them into your own closet.
-            </p>
-
-            <div class="feed-hero-actions">
-
-                {% if user.is_authenticated %}
-                <a href="{% url 'feed:create' %}"
-                   class="feed-hero-btn feed-hero-btn-primary">
-                    Post your outfit <span aria-hidden="true">→</span>
-                </a>
-                {% else %}
-                <a href="{% url 'register' %}"
-                   class="feed-hero-btn feed-hero-btn-primary">
-                    Join the club <span aria-hidden="true">→</span>
-                </a>
-                {% endif %}
-
-                <a href="#feed-form"
-                   class="feed-hero-btn feed-hero-btn-outline">
-                    Browse outfits
-                </a>
-
-            </div>
-        </div>
-
-        <!-- FASHION COLLAGE -->
-        <div class="feed-hero-visual">
-
-            <div class="feed-hero-photo feed-hero-photo-main">
-                <img
-                    src="{% static 'img/feed-hero-outfit.jpg' %}"
-                    alt="Outfit inspiration from the community"
-                >
-            </div>
-
-            <div class="feed-hero-photo feed-hero-photo-small">
-                <img
-                    src="{% static 'img/feed-hero-shoes.jpg' %}"
-                    alt="Casual footwear and outfit details"
-                >
-            </div>
-
-            <!-- COMMUNITY BADGE -->
-            <div class="feed-hero-badge">
-                <svg viewBox="0 0 120 120" aria-hidden="true">
-                    <defs>
-                        <path
-                            id="feed-badge-circle"
-                            d="M60,60 m-41,0 a41,41 0 1,1 82,0 a41,41 0 1,1 -82,0"
-                        />
-                    </defs>
-                    <text>
-                        <textPath href="#feed-badge-circle">
-                            REAL PEOPLE ♥ REAL OUTFITS ♥
-                        </textPath>
-                    </text>
-                </svg>
-                <span class="feed-hero-badge-heart">♡</span>
-            </div>
-
-            <span class="feed-hero-star" aria-hidden="true">✳</span>
-
-            <p class="feed-hero-handwritten">
-                Swap<br>
-                Style<br>
-                Repeat
-                <span></span>
-            </p>
-
-        </div>
-
-    </section>
-
-
     <!-- FEED FORM -->
     <form method="get" class="feed-layout" id="feed-form">
 
@@ -109,6 +18,7 @@
 
             <fieldset class="filter-group">
                 <legend>Size</legend>
+
                 {% for value, label in size_choices %}
                 <label class="check">
                     <input
@@ -125,6 +35,7 @@
 
             <fieldset class="filter-group">
                 <legend>Condition</legend>
+
                 {% for value, label in condition_choices %}
                 <label class="check">
                     <input
@@ -141,6 +52,7 @@
 
             <fieldset class="filter-group">
                 <legend>Offer</legend>
+
                 {% for value, label in offer_choices %}
                 <label class="check">
                     <input
@@ -156,7 +68,9 @@
             </fieldset>
 
             <div class="filter-actions">
-                <button type="submit" class="btn btn-dark">Apply</button>
+                <button type="submit" class="btn btn-dark">
+                    Apply
+                </button>
 
                 {% if has_filters %}
                 <a href="{% url 'feed:index' %}" class="btn btn-ghost">
@@ -171,6 +85,7 @@
         <!-- FEED RESULTS -->
         <section class="feed-results">
 
+            <!-- SEARCH + SORT TOOLBAR -->
             <div class="feed-toolbar">
 
                 <div class="search-box">
@@ -181,14 +96,17 @@
                         placeholder="Search outfits, users, items"
                         aria-label="Search outfits, users, and items"
                     >
+
                     <button type="submit" aria-label="Search">
                         <i class="bi bi-search"></i>
                     </button>
                 </div>
 
                 <div class="sort-pills" role="radiogroup" aria-label="Sort by">
+
                     {% for key, label in sort_options %}
                     <label class="pill">
+
                         <input
                             type="radio"
                             name="sort"
@@ -196,34 +114,45 @@
                             data-autosubmit
                             {% if sort == key %}checked{% endif %}
                         >
+
                         <span>
                             {% if sort == key %}
                             <i class="bi bi-check2"></i>
                             {% endif %}
+
                             {{ label }}
                         </span>
+
                     </label>
                     {% endfor %}
+
                 </div>
 
                 {% if user.is_authenticated %}
                 <a href="{% url 'feed:create' %}" class="btn btn-dark">
-                    <i class="bi bi-plus-lg"></i> Post outfit
+                    <i class="bi bi-plus-lg"></i>
+                    Post outfit
                 </a>
                 {% endif %}
 
             </div>
 
 
+            <!-- OUTFIT CARDS -->
             {% if page_obj.object_list %}
 
             <div class="feed-grid">
+
                 {% for post in page_obj %}
                     {% include 'feed/_post_card.html' %}
                 {% endfor %}
+
             </div>
 
+
+            <!-- PAGINATION -->
             {% if page_obj.has_other_pages %}
+
             <nav class="pagination" aria-label="Pagination">
 
                 {% if page_obj.has_previous %}
@@ -243,11 +172,15 @@
                 {% endif %}
 
             </nav>
+
             {% endif %}
 
+
+            <!-- EMPTY STATE -->
             {% else %}
 
             <div class="feed-empty">
+
                 <h2>
                     {% if has_filters %}
                         No outfits match your filters
@@ -271,10 +204,12 @@
             {% endif %}
 
         </section>
+
     </form>
 
 </div>
 {% endblock %}
+
 
 {% block extra_js %}
 <script src="{% static 'js/feed.js' %}"></script>
