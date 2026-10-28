@@ -701,7 +701,7 @@ class SwapRequestDecisionTests(SwapTestBase):
         response = self.client.post(reverse('swap:propose', args=[interest.pk]), {'offered_item': self.own_item.pk})
         self.assertRedirects(response, reverse('chat:room', args=[Conversation.objects.get().pk]))
         self.assertEqual(SwapRequest.objects.count(), 1)
-        self.assertContains(self.client.get(reverse('swap:interested')), 'Continue to chat')
+        self.assertContains(self.client.get(reverse('swap:interested')), 'Open chat')
 
     def test_buttons_match_participant_role(self):
         self.client.force_login(self.owner)

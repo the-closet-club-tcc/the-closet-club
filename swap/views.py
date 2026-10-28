@@ -44,12 +44,6 @@ def _send_request(user, item_id):
     Interest.objects.get_or_create(user=user, item=item)
     return proposal, True
 
-ACTIVE_STATUSES = (
-    SwapRequest.Status.PENDING,
-    SwapRequest.Status.COUNTER_PROPOSED,
-    SwapRequest.Status.AGREED,
-)
-
 @login_required(login_url='login')
 @never_cache
 def swap_page(request):
@@ -235,7 +229,7 @@ def _open_proposal_chat(proposal):
         conversation = Conversation.objects.create(
             user1_id=proposal.sender_id, user2_id=proposal.recipient_id,
         )
-        ensure_swap_card(conversation, swap_request)
+        ensure_swap_card(conversation, proposal)
 
     return redirect('chat:room', conversation_id=conversation.pk)
 
