@@ -1046,3 +1046,64 @@ class SwapActionTests(ChatTestBase):
             ).exists()
         )
         self.assertContains(response, 'Permintaan swap ditolak.')
+
+class SwapCardGuardTests(ChatTestBase):
+    def make_card(self, status=SwapRequest.Status.PENDING):
+        proposal = SwapRequest.objects.create(
+            sender=self.burhania, recipient=self.amelia, status=status,
+        )
+        card = ensure_swap_card(self.conv, proposal)
+        return proposal, card
+
+    def test_swap_card_cannot_be_deleted(self):
+        _, card = self.make_card()
+        self.login(self.burhania)  # pengirim kartu pun tidak boleh menghapus
+        resp = self.client.post(reverse('chat:delete', args=[card.pk]))
+        self.assertEqual(resp.status_code, 404)
+        self.assertTrue(Message.objects.filter(pk=card.pk).exists())
+
+    def test_swap_card_cannot_be_edited(self):
+        _, card = self.make_card()
+        self.login(self.burhania)
+        resp = self.client.get(reverse('chat:edit', args=[card.pk]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_swap_action_requires_post(self):
+        proposal, _ = self.make_card()
+        self.login(self.amelia)
+        resp = self.client.get(
+            reverse('chat:swap_action', args=[self.conv.pk, proposal.pk, 'decline']),
+        )
+        self.assertEqual(resp.status_code, 405)
+
+    def test_unknown_swap_action_is_rejected(self):
+        proposal, _ = self.make_card()
+        self.login(self.amelia)
+        resp = self.client.post(
+            reverse('chat:swap_action', args=[self.conv.pk, proposal.pk, 'hack']),
+            HTTP_HX_REQUEST='true',
+        )
+        self.assertEqual(resp.status_code, 400)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, SwapRequest.Status.PENDING)
+
+    def test_sender_cannot_decline_own_pending_request(self):
+        proposal, _ = self.make_card()
+        self.login(self.burhania)  # pengirim, bukan penerima
+        resp = self.client.post(
+            reverse('chat:swap_action', args=[self.conv.pk, proposal.pk, 'decline']),
+            HTTP_HX_REQUEST='true',
+        )
+        self.assertEqual(resp.status_code, 404)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, SwapRequest.Status.PENDING)
+
+    def test_swap_flash_message_does_not_leak_to_next_page(self):
+        proposal, _ = self.make_card()
+        self.login(self.amelia)
+        self.client.post(
+            reverse('chat:swap_action', args=[self.conv.pk, proposal.pk, 'decline']),
+            HTTP_HX_REQUEST='true',
+        )
+        resp = self.client.get(reverse('chat:index'))
+        self.assertNotContains(resp, 'Swap request declined')
