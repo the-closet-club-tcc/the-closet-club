@@ -243,70 +243,103 @@
     .feed-grid { grid-template-columns: 1fr; }
 }
 
-/* ---------- Hero ---------- */
+/* ---------- Hero banner ---------- */
 .feed-hero {
-    background: #fff;
-    border-bottom: 1px solid #e4d8c6;
-    font-family: 'Work Sans', sans-serif;
-}
-.feed-hero-inner {
-    max-width: 1240px;
-    margin: 0 auto;
-    padding: 56px 5%;
-    display: grid;
-    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
-    gap: 48px;
-    align-items: center;
-}
-.feed-hero-eyebrow {
-    display: inline-block;
-    margin-bottom: 18px;
-    padding: 6px 14px;
-    border-radius: 999px;
-    background: #f6eee3;
-    color: #344536;
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-}
-.feed-hero-title {
-    font-family: 'Gloock', serif;
-    font-weight: 400;
-    font-size: clamp(40px, 6vw, 68px);
-    line-height: 1.05;
-    color: #344536;
-}
-.feed-hero-sub {
-    margin-top: 20px;
-    max-width: 480px;
-    font-size: 18px;
-    line-height: 1.6;
-    color: #6d6a63;
-}
-.feed-hero-actions {
+    position: relative;
     display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-top: 30px;
-}
-.btn-lg { padding: 13px 26px; font-size: 16px; border-radius: 8px; }
-
-.feed-hero-visual {
-    height: 420px;
-    border-radius: 20px;
+    align-items: center;
+    min-height: 340px;
+    margin-bottom: 32px;
+    padding: clamp(28px, 4vw, 56px);
+    background-color: var(--feed-green);
+    border-radius: 24px;
     overflow: hidden;
-    background: #f6eee3;
 }
-.feed-hero-visual img {
-    width: 100%;
+
+/* photo on the right half, fading into the green */
+.feed-hero-image {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 55%;
     height: 100%;
     object-fit: cover;
-    object-position: center 35%;
-    display: block;
+    object-position: center 55%;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 45%);
+            mask-image: linear-gradient(90deg, transparent 0%, #000 45%);
+    z-index: 0;
 }
 
-@media (max-width: 860px) {
-    .feed-hero-inner { grid-template-columns: 1fr; padding: 36px 5%; gap: 28px; }
-    .feed-hero-visual { height: 280px; order: -1; }
+.feed-hero-content {
+    position: relative;
+    z-index: 1;
+    max-width: 560px;
+}
+
+.feed-hero-kicker {
+    margin: 0 0 20px;
+    color: #f6eee3;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 3px;
+}
+
+.feed-hero h1 {
+    margin: 0 0 18px;
+    color: #f6eee3;
+    font-family: 'Gloock', Georgia, serif;
+    font-size: clamp(36px, 4.6vw, 64px);
+    font-weight: 400;
+    line-height: 1.08;
+    letter-spacing: -1.5px;
+}
+.feed-hero h1 em { font-weight: 400; }
+
+.feed-hero-description {
+    max-width: 400px;
+    margin: 0 0 28px;
+    color: #f6eee3;
+    font-size: 17px;
+    line-height: 1.6;
+}
+
+.feed-hero-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+
+.feed-hero-btn,
+.feed-hero-btn:visited {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 26px;
+    border: 1px solid transparent;
+    border-radius: 40px;
+    font-size: 15px;
+    font-weight: 600;
+    transition: background .15s ease, color .15s ease, transform .15s ease;
+}
+.feed-hero-btn:hover { transform: translateY(-1px); }
+.feed-hero-btn:focus-visible { outline: 2px solid #f6eee3; outline-offset: 3px; }
+
+.feed-hero-btn-primary { background: #f6eee3; color: var(--feed-green); }
+.feed-hero-btn-primary:hover { background: #fff; }
+
+.feed-hero-btn-outline { border-color: rgba(246, 238, 227, .6); color: #f6eee3; }
+.feed-hero-btn-outline:hover { background: rgba(246, 238, 227, .12); }
+
+/* smooth scroll to the feed when "Browse outfits" is clicked */
+html { scroll-behavior: smooth; }
+#feed-form { scroll-margin-top: 16px; }
+
+@media (max-width: 760px) {
+    .feed-hero { align-items: flex-end; min-height: 380px; }
+    .feed-hero-image {
+        width: 100%;
+        height: 45%;
+        -webkit-mask-image: linear-gradient(180deg, #000 30%, transparent 100%);
+                mask-image: linear-gradient(180deg, #000 30%, transparent 100%);
+    }
+    .feed-hero-description { font-size: 15px; }
+}
+@media (max-width: 480px) {
+    .feed-hero-btn { width: 100%; justify-content: center; }
 }
