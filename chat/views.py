@@ -58,7 +58,9 @@ def _recent_messages(conversation, user):
     """200 pesan terakhir yang masih terlihat oleh user, urut lama ke baru."""
     qs = conversation.visible_messages(user).select_related(
         'sender', 'reply_to', 'reply_to__sender',
-    )    
+        'swap_request__sender', 'swap_request__recipient',
+        'swap_request__requested_item', 'swap_request__offered_item',
+    )  
     return list(reversed(qs.order_by('-created_at', '-id')[:MAX_MESSAGES]))
 
 
@@ -212,7 +214,10 @@ def edit_message(request, message_id):
 @login_required
 @require_POST
 def delete_message(request, message_id):
-    msg = get_object_or_404(Message, pk=message_id, sender=request.user)
+    msg = get_object_or_404(
+        Message.objects.exclude(message_type='swap'),
+        pk=message_id, sender=request.user,
+    )
     conv = _get_conversation(request.user, msg.conversation_id)
     msg.delete()
     return _render_messages(request, conv)
