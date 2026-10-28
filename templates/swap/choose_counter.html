@@ -1,16 +1,97 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="max-w-2xl mx-auto p-4">
-  <h1 class="text-xl font-bold">Choose a piece from {{ swap_request.sender.username }}'s closet</h1>
-  <form method="post">{% csrf_token %}
-    {% for item in choices %}
-      <label class="flex items-center gap-3 border rounded p-2 my-2">
+<style>
+  .cc-wrap { max-width: 880px; margin: 0 auto; padding: 32px 16px 56px; }
+  .cc-back { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: #344536; text-decoration: none; margin-bottom: 16px; }
+  .cc-back:hover { text-decoration: underline; }
+  .cc-title { font-size: 28px; font-weight: 700; color: #2B2B24; margin: 0; }
+  .cc-sub { margin: 6px 0 0; font-size: 14px; color: #5b5b52; }
+
+  .cc-want { display: flex; align-items: center; gap: 12px; margin-top: 20px; padding: 12px; background: #fff;
+             border: 1px solid #E8E0D0; border-radius: 16px; box-shadow: 0 4px 14px rgba(52,69,54,.08); }
+  .cc-want img, .cc-want .cc-ph { width: 64px; height: 64px; border-radius: 12px; object-fit: cover; flex-shrink: 0; }
+  .cc-label { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #7a7a70; margin: 0; }
+  .cc-name { margin: 2px 0 0; font-weight: 600; color: #2B2B24; }
+
+  .cc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 16px; margin-top: 24px; }
+  .cc-opt { position: relative; display: block; cursor: pointer; }
+  .cc-opt input { position: absolute; opacity: 0; pointer-events: none; }
+  .cc-card { background: #fff; border: 2px solid transparent; border-radius: 20px; overflow: hidden;
+             box-shadow: 0 6px 20px rgba(52,69,54,.10); transition: box-shadow .15s, border-color .15s, transform .15s; }
+  .cc-opt:hover .cc-card { box-shadow: 0 10px 26px rgba(52,69,54,.16); transform: translateY(-2px); }
+  .cc-opt input:checked + .cc-card { border-color: #344536; }
+  .cc-opt input:focus-visible + .cc-card { outline: 2px solid #B8863B; outline-offset: 2px; }
+  .cc-img { width: 100%; height: 170px; object-fit: cover; display: block; }
+  .cc-ph { display: flex; align-items: center; justify-content: center; background: #DCE3D8; color: #344536; font-size: 28px; }
+  .cc-body { padding: 12px 14px 14px; }
+  .cc-body h3 { margin: 0; font-size: 16px; font-weight: 700; color: #2B2B24; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cc-body p { margin: 4px 0 0; font-size: 13px; color: #5b5b52; }
+  .cc-check { position: absolute; top: 10px; right: 10px; width: 26px; height: 26px; border-radius: 50%;
+              background: #344536; color: #fff; display: none; align-items: center; justify-content: center; font-size: 14px; }
+  .cc-opt input:checked ~ .cc-check { display: flex; }
+
+  .cc-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 28px; }
+  .cc-btn { font: inherit; font-size: 14px; font-weight: 600; padding: 12px 24px; border-radius: 12px; cursor: pointer;
+            text-decoration: none; display: inline-block; line-height: 1.2; }
+  .cc-btn-primary { background: #344536; color: #fff; border: 1px solid #344536; }
+  .cc-btn-primary:hover { background: #2a392b; }
+  .cc-btn-ghost { background: #fff; color: #344536; border: 1px solid #E3DAC8; }
+  .cc-btn-ghost:hover { background: #F6F1E7; }
+
+  .cc-empty { margin-top: 24px; padding: 32px; text-align: center; background: rgba(255,255,255,.6);
+              border: 1px dashed #E3DAC8; border-radius: 20px; color: #5b5b52; }
+  .cc-empty strong { display: block; color: #2B2B24; margin-bottom: 4px; }
+</style>
+
+<div class="cc-wrap">
+  <a href="javascript:history.back()" class="cc-back"><i class="bi bi-arrow-left"></i> Back to chat</a>
+
+  <h1 class="cc-title">Choose your counter offer</h1>
+  <p class="cc-sub">Pick one piece from <strong>{{ swap_request.sender.username }}</strong>'s closet to swap for your item.</p>
+
+  {% with item=swap_request.requested_item %}
+  {% if item %}
+  <div class="cc-want">
+    {% if item.photo %}<img src="{{ item.photo.url }}" alt="{{ item.name }}">
+    {% else %}<div class="cc-ph"><i class="bi bi-handbag"></i></div>{% endif %}
+    <div>
+      <p class="cc-label">They want your</p>
+      <p class="cc-name">{{ item.name }}</p>
+    </div>
+  </div>
+  {% endif %}
+  {% endwith %}
+
+  <form method="post">
+    {% csrf_token %}
+    {% if choices %}
+    <div class="cc-grid">
+      {% for item in choices %}
+      <label class="cc-opt">
         <input type="radio" name="offered_item" value="{{ item.pk }}" required>
-        {% if item.image %}<img src="{{ item.image.url }}" class="w-16 h-16 object-cover rounded">{% endif %}
-        <span>{{ item.name }}</span>
+        <div class="cc-card">
+          {% if item.photo %}<img src="{{ item.photo.url }}" alt="{{ item.name }}" class="cc-img">
+          {% else %}<div class="cc-img cc-ph"><i class="bi bi-handbag"></i></div>{% endif %}
+          <div class="cc-body">
+            <h3>{{ item.name }}</h3>
+            <p>{{ item.get_status_display }}</p>
+          </div>
+        </div>
+        <span class="cc-check"><i class="bi bi-check-lg"></i></span>
       </label>
-    {% empty %}<p>No pieces available to offer.</p>{% endfor %}
-    <button class="btn">Send counter offer</button>
+      {% endfor %}
+    </div>
+
+    <div class="cc-actions">
+      <button type="button" class="cc-btn cc-btn-ghost" onclick="history.back()">Cancel</button>
+      <button type="submit" class="cc-btn cc-btn-primary">Send counter offer</button>
+    </div>
+    {% else %}
+    <div class="cc-empty">
+      <strong>No pieces available to offer</strong>
+      {{ swap_request.sender.username }} has nothing open for swap right now.
+    </div>
+    {% endif %}
   </form>
 </div>
 {% endblock %}
