@@ -217,6 +217,8 @@ def swap_action(request, conversation_id, swap_request_id, action):
     response = _swap_update_request_status(request, pk=proposal.pk, action=action)
     if response.status_code >= 400:
         return response
+    if request.headers.get('HX-Request', '').lower() == 'true':
+        list(messages.get_messages(request))    
 
     proposal.refresh_from_db()
     event = None
