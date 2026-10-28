@@ -1,0 +1,33 @@
+from .models import Block, Message
+from django.db.models import Q
+
+
+def ensure_swap_card(conversation, swap_request):
+    """Pastikan percakapan punya tepat satu kartu untuk SwapRequest ini.
+
+    Aman dipanggil berulang (refresh, klik ganda): kartu tidak akan dobel.
+    """
+    msg, created = Message.objects.get_or_create(
+        swap_request=swap_request,
+        message_type=Message.MessageType.SWAP,
+        defaults={
+            'conversation': conversation,
+            'sender_id': swap_request.sender_id,
+            'content': f'{swap_request.sender.username} wants to swap with you!',
+        },
+    )
+    if created:
+        conversation.save(update_fields=['updated_at'])
+    return msg
+
+def post_swap_update(conversation, actor, text):
+    return Message.objects.create(
+        conversation=conversation, sender=actor,
+        message_type=Message.MessageType.TEXT, content=text,
+    )
+
+def users_blocked(user_a_id, user_b_id):
+    return Block.objects.filter(
+        Q(blocker_id=user_a_id, blocked_id=user_b_id)
+        | Q(blocker_id=user_b_id, blocked_id=user_a_id)
+    ).exists()

@@ -50,7 +50,7 @@ class SwapRequest(models.Model):
         'closet.Clothing', on_delete=models.SET_NULL, null=True,
         related_name='incoming_swap_requests',
     )
-    status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     created_at = models.DateTimeField(auto_now_add=True)
     status_changed_at = models.DateTimeField(null=True, blank=True)
     countered_at = models.DateTimeField(null=True, blank=True)

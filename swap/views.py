@@ -10,6 +10,7 @@ from django.utils import timezone
 
 from closet.models import Clothing
 from chat.models import Conversation
+from chat.services import ensure_swap_card, post_swap_update, users_blocked
 
 from .forms import CounterOfferForm
 from .models import Interest, SwapRequest
@@ -43,6 +44,11 @@ def _send_request(user, item_id):
     Interest.objects.get_or_create(user=user, item=item)
     return proposal, True
 
+ACTIVE_STATUSES = (
+    SwapRequest.Status.PENDING,
+    SwapRequest.Status.COUNTER_PROPOSED,
+    SwapRequest.Status.AGREED,
+)
 
 @login_required(login_url='login')
 @never_cache
@@ -95,6 +101,14 @@ def interested_items(request):
         'interests': interests, **_request_counts(request.user),
     })
 
+def _get_or_create_conversation(user_a_id, user_b_id):
+    conversation = Conversation.objects.filter(
+        Q(user1_id=user_a_id, user2_id=user_b_id)
+        | Q(user1_id=user_b_id, user2_id=user_a_id)
+    ).first()
+    if conversation is None:
+        conversation = Conversation.objects.create(user1_id=user_a_id, user2_id=user_b_id)
+    return conversation
 
 @require_POST
 def save_interest(request, pk):
@@ -112,7 +126,6 @@ def save_interest(request, pk):
 def remove_interest(request, pk):
     Interest.objects.filter(pk=pk, user=request.user).delete()
     return redirect('swap:interested')
-
 
 @login_required(login_url='login')
 @never_cache
@@ -222,13 +235,9 @@ def _open_proposal_chat(proposal):
         conversation = Conversation.objects.create(
             user1_id=proposal.sender_id, user2_id=proposal.recipient_id,
         )
-    item = proposal.requested_item
-    if item and item.status in SWAP_STATUSES and item.owner_id == proposal.recipient_id:
-        conversation.item_id = item.pk
-        conversation.item_name = item.name
-        conversation.save(update_fields=['item_id', 'item_name', 'updated_at'])
-    return redirect('chat:room', conversation_id=conversation.pk)
+        ensure_swap_card(conversation, swap_request)
 
+    return redirect('chat:room', conversation_id=conversation.pk)
 
 @login_required(login_url='login')
 @never_cache

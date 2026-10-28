@@ -18,4 +18,8 @@ urlpatterns = [
     path('list/', views.conversation_list, name='conversation_list'),
     path('users/', views.user_search, name='user_search'),
     path('<int:conversation_id>/delete/', views.delete_conversation, name='delete_conversation'),
+    path('<int:conversation_id>/block/', views.block_user, name='block'),
+    path('<int:conversation_id>/unblock/', views.unblock_user, name='unblock'),
+    path('<int:conversation_id>/report/', views.report, name='report'),
+    path('<int:conversation_id>/accept/', views.accept_conversation, name='accept'),    
 ]

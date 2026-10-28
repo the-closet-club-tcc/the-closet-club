@@ -51,7 +51,7 @@
                     <a class="swap-propose-link swap-primary" href="{% url 'swap:requests_outgoing' %}">View request</a>
                     <form method="post" action="{% url 'swap:propose' interest.pk %}">
                         {% csrf_token %}
-                        <button type="submit" class="swap-propose-link swap-secondary">Continue to chat</button>
+                        <button type="submit" class="swap-propose-link swap-secondary">Open chat</button>
                     </form>
                     {% elif interest.available and not interest.reserved %}
                     <a class="swap-propose-link swap-primary" href="{% url 'swap:propose' interest.pk %}">Send swap request</a>
