@@ -9,13 +9,18 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from closet.models import Clothing
 from chat.models import Conversation
-from chat.services import ensure_swap_card
+from chat.services import ensure_swap_card, users_blocked
 
 from .forms import SwapRequestForm
 from .models import Interest, SwapRequest
 
 SWAP_STATUSES = (Clothing.Status.BARTER, Clothing.Status.TOP_UP)
 
+ACTIVE_STATUSES = (
+    SwapRequest.Status.PENDING,
+    SwapRequest.Status.COUNTER_PROPOSED,
+    SwapRequest.Status.AGREED,
+)
 
 @login_required(login_url='login')
 @never_cache
@@ -79,13 +84,19 @@ def save_interest(request, pk):
     item = Clothing.objects.filter(pk=pk, status__in=SWAP_STATUSES).exclude(owner=request.user).first()
     if item is None:
         return JsonResponse({'error': 'This item is no longer available for swap.'}, status=404)
+    if users_blocked(request.user.pk, item.owner_id):
+        return JsonResponse({'error': 'You cannot send a swap request to this user.'}, status=403)    
     with transaction.atomic():
         Interest.objects.get_or_create(user=request.user, item=item)
-        swap_request, _ = SwapRequest.objects.get_or_create(
-            sender=request.user, requested_item=item,
-            status=SwapRequest.Status.PENDING,
-            defaults={'recipient': item.owner},
-        )
+        swap_request = SwapRequest.objects.filter(
+            sender=request.user, requested_item=item, status__in=ACTIVE_STATUSES,
+        ).first()
+        if swap_request is None:
+            swap_request, _ = SwapRequest.objects.get_or_create(
+                sender=request.user, requested_item=item,
+                status=SwapRequest.Status.PENDING,
+                defaults={'recipient': item.owner},
+            )
         conversation = _get_or_create_conversation(swap_request.sender_id, swap_request.recipient_id)
         ensure_swap_card(conversation, swap_request)
     return JsonResponse({'saved': True})
@@ -96,13 +107,6 @@ def save_interest(request, pk):
 def remove_interest(request, pk):
     Interest.objects.filter(pk=pk, user=request.user).delete()
     return redirect('swap:interested')
-
-ACTIVE_STATUSES = (
-    SwapRequest.Status.PENDING,
-    SwapRequest.Status.COUNTER_PROPOSED,
-    SwapRequest.Status.AGREED,
-)
-
 
 @login_required(login_url='login')
 @never_cache
@@ -121,6 +125,9 @@ def propose_swap(request, pk):
             if item.status not in SWAP_STATUSES or item.owner_id == request.user.pk:
                 messages.error(request, 'This piece is no longer available for swap.')
                 return redirect('swap:interested')
+            if users_blocked(request.user.pk, item.owner_id):
+                messages.error(request, 'You cannot send a swap request to this user.')
+                return redirect('swap:interested')            
             swap_request = SwapRequest.objects.create(
                 sender=request.user, recipient=item.owner, requested_item=item,
             )

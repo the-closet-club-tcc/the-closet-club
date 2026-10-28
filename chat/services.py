@@ -1,4 +1,5 @@
-from .models import Message
+from .models import Block, Message
+from django.db.models import Q
 
 
 def ensure_swap_card(conversation, swap_request):
@@ -18,3 +19,9 @@ def ensure_swap_card(conversation, swap_request):
     if created:
         conversation.save(update_fields=['updated_at'])
     return msg
+
+def users_blocked(user_a_id, user_b_id):
+    return Block.objects.filter(
+        Q(blocker_id=user_a_id, blocked_id=user_b_id)
+        | Q(blocker_id=user_b_id, blocked_id=user_a_id)
+    ).exists()
