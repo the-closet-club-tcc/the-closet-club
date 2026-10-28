@@ -33,7 +33,6 @@
             <a href="{% url 'closet:my_closet' %}">My Closet</a>
             <a href="{% url 'swap:index' %}">Swap</a>
             <a href="{% url 'chat:index' %}">Chat</a>
-            <a href="#">Contact</a>
 
             {% if user.is_authenticated %}
                 <a href="{% url 'profile' %}"
