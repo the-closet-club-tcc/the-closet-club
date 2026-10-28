@@ -97,6 +97,12 @@ def remove_interest(request, pk):
     Interest.objects.filter(pk=pk, user=request.user).delete()
     return redirect('swap:interested')
 
+ACTIVE_STATUSES = (
+    SwapRequest.Status.PENDING,
+    SwapRequest.Status.COUNTER_PROPOSED,
+    SwapRequest.Status.AGREED,
+)
+
 
 @login_required(login_url='login')
 @never_cache
@@ -106,64 +112,24 @@ def propose_swap(request, pk):
         Interest.objects.select_related('item__owner'), pk=pk, user=request.user,
     )
     item = interest.item
-    available = item.status in SWAP_STATUSES and item.owner_id != request.user.pk
-    existing_request = SwapRequest.objects.filter(
-        sender=request.user, requested_item=item, status=SwapRequest.Status.PENDING,
-    ).select_related('requested_item').first()
-    if existing_request:
-        if request.method == 'POST':
-            return _open_proposal_chat(existing_request)
-        messages.info(request, 'You already have a pending request for this piece.')
-        return redirect('swap:requests_outgoing')
 
-    form = SwapRequestForm(request.POST if request.method == 'POST' else None, user=request.user)
-    if request.method == 'POST':
-        if not available:
-            form.add_error(None, 'This piece is no longer available for swap.')
-        elif form.is_valid():
-            offered_item = form.cleaned_data['offered_item']
-            with transaction.atomic():
-                locked_items = {
-                    piece.pk: piece for piece in Clothing.objects.select_for_update().filter(
-                        pk__in=[item.pk, offered_item.pk],
-                    ).order_by('pk')
-                }
-                target = locked_items.get(item.pk)
-                offered = locked_items.get(offered_item.pk)
-                if not target or target.status not in SWAP_STATUSES or target.owner_id != item.owner_id:
-                    available = False
-                    form.add_error(None, 'This piece is no longer available for swap.')
-                elif not offered or offered.status not in SWAP_STATUSES or offered.owner_id != request.user.pk:
-                    form.add_error('offered_item', 'This piece is no longer available. Choose another item.')
-                else:
-                    proposal, _ = SwapRequest.objects.get_or_create(
-                        sender=request.user, requested_item=target, status=SwapRequest.Status.PENDING,
-                        defaults={'recipient': target.owner, 'offered_item': offered},
-                    )
-                    return _open_proposal_chat(proposal)
-
-    return render(request, 'swap/propose.html', {
-        'item': item, 'available': available, 'form': form,
-        'has_offers': form.fields['offered_item'].queryset.exists(),
-    }, status=400 if request.method == 'POST' else 200)
-
-
-def _open_proposal_chat(proposal):
-    conversation = Conversation.objects.filter(
-        Q(user1_id=proposal.sender_id, user2_id=proposal.recipient_id)
-        | Q(user1_id=proposal.recipient_id, user2_id=proposal.sender_id)
-    ).first()
-    if conversation is None:
-        conversation = Conversation.objects.create(
-            user1_id=proposal.sender_id, user2_id=proposal.recipient_id,
+    with transaction.atomic():
+        swap_request = SwapRequest.objects.filter(
+            sender=request.user, requested_item=item, status__in=ACTIVE_STATUSES,
+        ).first()
+        if swap_request is None:
+            if item.status not in SWAP_STATUSES or item.owner_id == request.user.pk:
+                messages.error(request, 'This piece is no longer available for swap.')
+                return redirect('swap:interested')
+            swap_request = SwapRequest.objects.create(
+                sender=request.user, recipient=item.owner, requested_item=item,
+            )
+        conversation = _get_or_create_conversation(
+            swap_request.sender_id, swap_request.recipient_id,
         )
-    item = proposal.requested_item
-    if item and item.status in SWAP_STATUSES and item.owner_id == proposal.recipient_id:
-        conversation.item_id = item.pk
-        conversation.item_name = item.name
-        conversation.save(update_fields=['item_id', 'item_name', 'updated_at'])
-    return redirect('chat:room', conversation_id=conversation.pk)
+        ensure_swap_card(conversation, swap_request)
 
+    return redirect('chat:room', conversation_id=conversation.pk)
 
 @login_required(login_url='login')
 @never_cache
