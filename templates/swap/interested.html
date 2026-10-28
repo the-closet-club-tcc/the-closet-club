@@ -4,7 +4,7 @@
 {% block title %}Interested items | The Closet Club{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'css/swap.css' %}?v=13">
+<link rel="stylesheet" href="{% static 'css/swap.css' %}?v=21">
 {% endblock %}
 
 {% block content %}
@@ -12,7 +12,7 @@
     <div class="swap-container">
         <header class="swap-header">
             <h1>Interested items</h1>
-            <p>Your saved pieces. Find a favorite and offer a piece from your closet.</p>
+            <p>Your saved pieces and requests. Review counter-offers in Swap requests.</p>
         </header>
 
         {% include 'swap/_navigation.html' with active='interested' %}
@@ -41,17 +41,19 @@
                     {% if interest.available %}
                     <h2>{{ interest.item.name }}</h2>
                     <p>Size {{ interest.item.get_size_display }} &middot; {{ interest.item.get_condition_display }}</p>
+                    {% if interest.reserved %}<p>This piece is currently reserved for an accepted swap.</p>{% endif %}
                     {% else %}
                     <h2>Item no longer available</h2>
                     <p>This piece is no longer offered for swap. You can remove it from your list.</p>
                     {% endif %}
 
                     {% if interest.request_pending %}
+                    <a class="swap-propose-link swap-primary" href="{% url 'swap:requests_outgoing' %}">View request</a>
                     <form method="post" action="{% url 'swap:propose' interest.pk %}">
                         {% csrf_token %}
                         <button type="submit" class="swap-propose-link swap-secondary">Open chat</button>
                     </form>
-                    {% elif interest.available %}
+                    {% elif interest.available and not interest.reserved %}
                     <a class="swap-propose-link swap-primary" href="{% url 'swap:propose' interest.pk %}">Send swap request</a>
                     {% endif %}
 
@@ -71,7 +73,7 @@
         {% else %}
         <div class="swap-saved-empty swap-finished">
             <h2>No saved pieces yet</h2>
-            <p>Swipe right on a piece you like. It will be saved here for your next visit.</p>
+            <p>Swipe right to send a swap request. The piece will also be saved here.</p>
             <div class="swap-finished-actions">
                 <a href="{% url 'swap:index' %}">Discover pieces &rarr;</a>
             </div>
@@ -83,5 +85,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/swap.js' %}?v=5"></script>
+<script src="{% static 'js/swap.js' %}?v=7"></script>
 {% endblock %}

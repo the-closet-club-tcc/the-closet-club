@@ -4,7 +4,7 @@
 {% block title %}Swap | The Closet Club{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'css/swap.css' %}?v=13">
+<link rel="stylesheet" href="{% static 'css/swap.css' %}?v=21">
 {% endblock %}
 
 {% block content %}
@@ -14,7 +14,7 @@
 
         <header class="swap-header">
             <h1>Swap!</h1>
-            <p>Discover pre-loved clothes and find your next swap.</p>
+            <p>Discover pre-loved clothes. Swipe right to send a swap request, then review the owner's counter-offer.</p>
         </header>
 
         {% include 'swap/_navigation.html' with active='discover' %}
@@ -60,7 +60,7 @@
                             View Details
                         </button>
 
-                        <button type="button" class="swap-accept" aria-label="Interested in item">
+                        <button type="button" class="swap-accept" aria-label="Send swap request for this item">
                             ✓
                         </button>
                     </div>
@@ -72,6 +72,7 @@
                 <h2>{% if items or has_interests %}You're all caught up!{% elif current_status %}No matching items{% else %}No swap items yet{% endif %}</h2>
                 <p id="swap-finished-message">{% if has_interests %}Revisit your saved pieces in Interested items, or explore other swap options.{% elif items %}Visit your closet and add a piece for your next swap.{% elif current_status %}Try all swap options to see other available pieces.{% else %}Check back later, or offer a piece from your closet.{% endif %}</p>
                 <div class="swap-finished-actions">
+                    <a href="{% url 'swap:requests_outgoing' %}">View outgoing requests</a>
                     <button type="button" class="swap-review" id="review-skipped" hidden>
                         Review skipped items
                     </button>
@@ -94,6 +95,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/swap.js' %}?v=5"></script>
+<script src="{% static 'js/swap.js' %}?v=7"></script>
 
 {% endblock %}

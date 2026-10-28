@@ -1,20 +1,20 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Propose a swap | The Closet Club{% endblock %}
+{% block title %}Choose a counter-offer | The Closet Club{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'css/swap.css' %}?v=14">
+<link rel="stylesheet" href="{% static 'css/swap.css' %}?v=19">
 {% endblock %}
 
 {% block content %}
 <section class="swap-page swap-proposal-page">
     <div class="swap-container">
         <header class="swap-header">
-            <h1>Propose a swap</h1>
-            <p>A piece you love, for a piece of yours.</p>
+            <h1>Choose a counter-offer</h1>
+            <p>{{ proposal.sender.username }} is interested in your piece. Choose what you would like in return.</p>
         </header>
-        {% include 'swap/_navigation.html' with active='interested' %}
+        {% include 'swap/_navigation.html' with active='requests' %}
 
         <div class="swap-proposal{% if not available %} swap-proposal-unavailable{% endif %}">
             {% if available %}
@@ -27,7 +27,7 @@
                     {% endif %}
                 </div>
                 <div class="swap-proposal-summary">
-                    <span class="swap-eyebrow">You would like</span>
+                    <span class="swap-eyebrow">Your piece they requested</span>
                     <h2 id="requested-piece-name">{{ item.name }}</h2>
                     <p class="swap-proposal-owner">From {{ item.owner.username }}</p>
                     <p class="swap-proposal-meta">Size {{ item.get_size_display }} <span aria-hidden="true">&middot;</span> {{ item.get_condition_display }}</p>
@@ -36,42 +36,91 @@
             </article>
             <form method="post" class="swap-proposal-form">
                 {% csrf_token %}
-                <h2>Choose your offer</h2>
-                <p id="offer-help">Pick a piece from your closet to offer {{ item.owner.username }}.</p>
+                <h2>{{ proposal.sender.username }}'s closet</h2>
+                <p id="offer-help">Pick one available piece. {{ proposal.sender.username }} will review your choice before agreeing.</p>
                 {% if form.non_field_errors %}
                 <div class="swap-form-errors" role="alert">{{ form.non_field_errors }}</div>
                 {% endif %}
                 {% if has_offers %}
-                <label for="{{ form.offered_item.id_for_label }}">{{ form.offered_item.label }}</label>
-                {{ form.offered_item }}
+                <fieldset class="swap-counter-choices" aria-describedby="offer-help offer-errors">
+                    <legend>{{ form.offered_item.label }}</legend>
+                    {% for piece in offer_items %}
+                    <label class="swap-counter-choice">
+                        <input type="radio" name="offered_item" value="{{ piece.pk }}" data-allows-top-up="{% if piece.status == 'top_up' %}true{% else %}false{% endif %}" required {% if form.offered_item.value|stringformat:'s' == piece.pk|stringformat:'s' %}checked{% endif %}>
+                        {% if piece.photo %}<img src="{{ piece.photo.url }}" alt="{{ piece.name }}" loading="lazy">{% endif %}
+                        <span><strong>{{ piece.name }}</strong><span>Size {{ piece.get_size_display }} &middot; {{ piece.get_condition_display }}</span><span>{{ piece.get_status_display }}</span></span>
+                    </label>
+                    {% endfor %}
+                </fieldset>
                 <div id="offer-errors" class="swap-form-errors" {% if form.offered_item.errors %}role="alert"{% endif %}>{{ form.offered_item.errors }}</div>
-                <p class="swap-proposal-hint">Available pieces marked Open to swap or Swap + top-up.</p>
+                <p class="swap-proposal-hint">Available pieces marked Open to swap or Swap + top-up. Pieces in an accepted swap are excluded.</p>
+                <fieldset class="swap-top-up-fields" id="swap-top-up-fields" data-requested-top-up="{% if item.status == 'top_up' %}true{% else %}false{% endif %}" {% if item.status != 'top_up' %}hidden disabled{% endif %}>
+                    <legend>Top-up agreement</legend>
+                    <p id="top-up-help">Optional when either piece is listed as Swap + top-up. Choose No top-up for an exchange without extra money.</p>
+                    <label for="{{ form.top_up_payer.id_for_label }}">{{ form.top_up_payer.label }}</label>
+                    {{ form.top_up_payer }}
+                    <div id="top-up-payer-errors" class="swap-form-errors" {% if form.top_up_payer.errors %}role="alert"{% endif %}>{{ form.top_up_payer.errors }}</div>
+                    <label for="{{ form.top_up_amount.id_for_label }}">{{ form.top_up_amount.label }}</label>
+                    {{ form.top_up_amount }}
+                    <div id="top-up-amount-errors" class="swap-form-errors" {% if form.top_up_amount.errors %}role="alert"{% endif %}>{{ form.top_up_amount.errors }}</div>
+                    <p id="top-up-amount-help" class="swap-proposal-hint">Enter whole rupiah without separators, e.g. 50000 for Rp 50.000. Leave empty for No top-up.</p>
+                </fieldset>
                 <div class="swap-proposal-note">
-                    <p>Your offer will be saved, then you'll go straight to chat with {{ item.owner.username }}.</p>
-                    <p>Discuss the exchange and any top-up together. Neither piece is reserved yet.</p>
+                    <p>{{ proposal.sender.username }} will see this counter-offer in Outgoing requests. Neither piece is reserved until they accept.</p>
+                    <p id="swap-top-up-note" {% if item.status != 'top_up' %}hidden{% endif %}>Payment is arranged between you; this app does not process payments. To change the terms, cancel the request and send a new offer.</p>
                 </div>
                 <div class="swap-proposal-actions">
-                    <button type="submit" class="swap-primary">Continue to chat</button>
-                    <a class="swap-back-link" href="{% url 'swap:interested' %}">Back to interested items</a>
+                    <button type="submit" class="swap-primary">Send counter-offer</button>
+                    <a class="swap-back-link" href="{% url 'swap:requests_incoming' %}">Back to incoming requests</a>
                 </div>
                 {% else %}
                 <div class="swap-proposal-note">
-                    <p>No available pieces yet. Add a piece in My Closet or mark one as Open to swap to get started.</p>
+                    <p>No available pieces in {{ proposal.sender.username }}'s closet yet. Ask them to add a piece or mark one as Open to swap. Reserved pieces cannot be selected.</p>
                 </div>
                 <div class="swap-proposal-actions">
-                    <a href="{% url 'closet:my_closet' %}" class="swap-primary">Go to My Closet</a>
-                    <a class="swap-back-link" href="{% url 'swap:interested' %}">Back to interested items</a>
+                    <a class="swap-back-link" href="{% url 'swap:requests_incoming' %}">Back to incoming requests</a>
                 </div>
                 {% endif %}
             </form>
             {% else %}
             <div class="swap-proposal-form">
                 <h2>This piece is no longer available</h2>
-                <p>Its availability has changed. Choose another piece from your saved items.</p>
-                <a class="swap-back-link" href="{% url 'swap:interested' %}">Back to interested items &rarr;</a>
+                <p>Its availability has changed. You can decline this request from your incoming list.</p>
+                <a class="swap-back-link" href="{% url 'swap:requests_incoming' %}">Back to incoming requests &rarr;</a>
             </div>
             {% endif %}
         </div>
     </div>
 </section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const topUpFields = document.getElementById('swap-top-up-fields');
+    if (topUpFields) {
+        const counterForm = topUpFields.closest('form');
+        const topUpNote = document.getElementById('swap-top-up-note');
+        const payer = counterForm.elements.namedItem('top_up_payer');
+        const amount = counterForm.elements.namedItem('top_up_amount');
+
+        function updateTopUpVisibility() {
+            const selected = counterForm.querySelector('[name="offered_item"]:checked');
+            const allowed = topUpFields.dataset.requestedTopUp === 'true'
+                || selected?.dataset.allowsTopUp === 'true';
+
+            topUpFields.hidden = !allowed;
+            topUpFields.disabled = !allowed;
+            topUpNote.hidden = !allowed;
+            if (!allowed) {
+                payer.value = 'none';
+                amount.value = '';
+            }
+        }
+
+        counterForm.querySelectorAll('[name="offered_item"]').forEach(choice => {
+            choice.addEventListener('change', updateTopUpVisibility);
+        });
+        updateTopUpVisibility();
+    }
+</script>
 {% endblock %}

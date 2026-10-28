@@ -15,10 +15,10 @@ document.addEventListener("DOMContentLoaded", function () {
             const card = button.closest("[data-name]");
             document.getElementById("detail-name").textContent = card.dataset.name;
             document.getElementById("detail-description").textContent = card.dataset.description;
-            document.getElementById("detail-size").textContent = "Size: " + card.dataset.size;
-            document.getElementById("detail-condition").textContent = "Condition: " + card.dataset.condition;
-            document.getElementById("detail-offer").textContent = "Offer: " + card.dataset.offer;
-            document.getElementById("detail-owner").textContent = "Owner: " + card.dataset.owner;
+            document.getElementById("detail-size").textContent = card.dataset.size;
+            document.getElementById("detail-condition").textContent = card.dataset.condition;
+            document.getElementById("detail-offer").textContent = card.dataset.offer;
+            document.getElementById("detail-owner").textContent = card.dataset.owner;
             modal.showModal();
         });
     });
@@ -79,9 +79,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 return;
             }
 
-            feedback.textContent = "Saving your choice...";
+            feedback.textContent = "Sending your swap request...";
             activeCard.setAttribute("aria-busy", "true");
-            let failureMessage = "Couldn't save this item. Please try again.";
+            let failureMessage = "Couldn't send this request. Please try again.";
             try {
                 const response = await fetch(activeCard.dataset.saveUrl, {
                     method: "POST",
@@ -121,7 +121,7 @@ document.addEventListener("DOMContentLoaded", function () {
             activeCard.style.transform =
                 "translateX(120vw) rotate(20deg)";
             feedback.textContent =
-                `Saved ${itemName} to Interested items.`;
+                `Swap request for ${itemName} is in Outgoing requests. The piece is also saved to Interested items.`;
         }
 
         activeCard.style.opacity = "0";
