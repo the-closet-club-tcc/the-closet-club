@@ -15,6 +15,8 @@ from PIL import Image
 from .models import Conversation, Message, Attachment, Report, Block
 from . import osm
 from .views import QUICK_REPLIES
+from swap.models import SwapRequest
+from .services import ensure_swap_card
 
 User = get_user_model()
 
@@ -927,9 +929,120 @@ class MessageRequestTests(ChatTestBase):
         self.login(self.amelia)
         self.assertEqual(self.client.get(reverse('chat:accept', args=[conv.id])).status_code, 405)
 
-
 class SafetyBannerTests(ChatTestBase):
     def test_banner_text_shown_in_room(self):
         self.login(self.burhania)
         resp = self.client.get(reverse('chat:room', args=[self.conv.id]))
         self.assertContains(resp, 'Bertemu di tempat umum, jangan transfer sebelum barang diterima')
+
+class SwapCardServiceTests(ChatTestBase):
+    def test_ensure_swap_card_creates_only_one_card(self):
+        proposal = SwapRequest.objects.create(
+            sender=self.burhania,
+            recipient=self.amelia,
+        )
+
+        first = ensure_swap_card(self.conv, proposal)
+        second = ensure_swap_card(self.conv, proposal)
+
+        self.assertEqual(first.pk, second.pk)
+        self.assertEqual(first.conversation_id, self.conv.pk)
+        self.assertEqual(first.sender_id, self.burhania.pk)
+        self.assertEqual(first.message_type, Message.MessageType.SWAP)
+        self.assertEqual(
+            Message.objects.filter(
+                swap_request=proposal,
+                message_type=Message.MessageType.SWAP,
+            ).count(),
+            1,
+        )
+
+
+class SwapActionTests(ChatTestBase):
+    def create_pending_request(self, sender=None, recipient=None):
+        return SwapRequest.objects.create(
+            sender=sender or self.burhania,
+            recipient=recipient or self.amelia,
+            status=SwapRequest.Status.PENDING,
+        )
+
+    def test_non_participant_cannot_use_swap_action(self):
+        proposal = self.create_pending_request()
+        self.login(self.faizy)
+
+        response = self.client.post(
+            reverse(
+                'chat:swap_action',
+                args=[self.conv.pk, proposal.pk, 'decline'],
+            )
+        )
+
+        self.assertEqual(response.status_code, 404)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, SwapRequest.Status.PENDING)
+
+    def test_request_from_another_pair_cannot_be_used_in_this_chat(self):
+        proposal = self.create_pending_request(
+            sender=self.faizy,
+            recipient=self.amelia,
+        )
+        self.login(self.amelia)
+
+        response = self.client.post(
+            reverse(
+                'chat:swap_action',
+                args=[self.conv.pk, proposal.pk, 'decline'],
+            )
+        )
+
+        self.assertEqual(response.status_code, 404)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, SwapRequest.Status.PENDING)
+
+    def test_blocked_pair_cannot_accept_pending_request(self):
+        from .models import Block
+
+        proposal = self.create_pending_request()
+        Block.objects.create(
+            blocker=self.burhania,
+            blocked=self.amelia,
+        )
+        self.login(self.amelia)
+
+        response = self.client.post(
+            reverse(
+                'chat:swap_action',
+                args=[self.conv.pk, proposal.pk, 'accept'],
+            )
+        )
+
+        self.assertEqual(response.status_code, 403)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, SwapRequest.Status.PENDING)
+
+    def test_declining_request_updates_status_and_chat(self):
+        proposal = self.create_pending_request()
+        self.login(self.amelia)
+
+        response = self.client.post(
+            reverse(
+                'chat:swap_action',
+                args=[self.conv.pk, proposal.pk, 'decline'],
+            ),
+            HTTP_HX_REQUEST='true',
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, SwapRequest.Status.DECLINED)
+
+        self.assertTrue(
+            Message.objects.filter(
+                conversation=self.conv,
+                sender=self.amelia,
+                message_type=Message.MessageType.TEXT,
+                content='Permintaan swap ditolak.',
+            ).exists()
+        )
+        self.assertContains(response, 'Permintaan swap ditolak.')
