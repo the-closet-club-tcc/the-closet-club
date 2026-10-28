@@ -4,7 +4,7 @@
 {% block title %}Swap requests | The Closet Club{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'css/swap.css' %}?v=17">
+<link rel="stylesheet" href="{% static 'css/swap.css' %}?v=19">
 {% endblock %}
 
 {% block content %}
@@ -16,8 +16,8 @@
         </header>
         {% include 'swap/_navigation.html' with active='requests' %}
         <nav class="swap-filters" aria-label="Request direction">
-            <a href="{% url 'swap:requests_incoming' %}" {% if is_incoming %}aria-current="page"{% endif %}>Incoming</a>
-            <a href="{% url 'swap:requests_outgoing' %}" {% if not is_incoming %}aria-current="page"{% endif %}>Outgoing</a>
+            <a href="{% url 'swap:requests_incoming' %}" {% if is_incoming %}aria-current="page"{% endif %}>Incoming{% if pending_incoming_count %} ({{ pending_incoming_count }}){% endif %}</a>
+            <a href="{% url 'swap:requests_outgoing' %}" {% if not is_incoming %}aria-current="page"{% endif %}>Outgoing{% if pending_outgoing_count %} ({{ pending_outgoing_count }}){% endif %}</a>
         </nav>
 
         {% for message in messages %}
@@ -36,32 +36,57 @@
                     <span class="swap-request-status swap-request-status-{{ proposal.status }}">{{ proposal.get_status_display }}</span>
                 </header>
                 <div class="swap-request-pair">
+                    {% if not proposal.offered_item_id and not proposal.countered_at %}
+                    <div class="swap-counter-placeholder"><p>No counter-offer selected yet.</p></div>
+                    {% elif is_incoming %}
+                    {% include 'swap/_request_item.html' with item=proposal.offered_item available=proposal.offered_available label='Piece from their closet' only %}
+                    {% else %}
+                    {% include 'swap/_request_item.html' with item=proposal.offered_item available=proposal.offered_available label='Your piece' only %}
+                    {% endif %}
                     {% if is_incoming %}
-                    {% include 'swap/_request_item.html' with item=proposal.offered_item available=proposal.offered_available label='Their offer' only %}
                     {% include 'swap/_request_item.html' with item=proposal.requested_item available=proposal.requested_available label='Your piece' only %}
                     {% else %}
-                    {% include 'swap/_request_item.html' with item=proposal.offered_item available=proposal.offered_available label='Your offer' only %}
                     {% include 'swap/_request_item.html' with item=proposal.requested_item available=proposal.requested_available label='Requested piece' only %}
                     {% endif %}
                 </div>
+                {% if proposal.offered_item_id or proposal.countered_at %}
+                <div class="swap-top-up-summary">
+                    <h3>{% if proposal.status == 'pending' or proposal.status == 'countered' %}Proposed terms{% elif proposal.status == 'accepted' or proposal.status == 'in_progress' or proposal.status == 'completed' %}Agreed terms{% else %}Offer terms{% endif %}</h3>
+                    <p>{{ proposal.top_up_summary }}</p>
+                    {% if proposal.top_up_amount %}
+                    {% if proposal.status == 'pending' or proposal.status == 'countered' %}
+                    <p>Accepting this offer also agrees to this top-up. To change it, discuss in chat and send a new request.</p>
+                    {% endif %}
+                    <p>Payment is arranged between you. No payment is processed or verified by this app.</p>
+                    {% endif %}
+                </div>
+                {% endif %}
                 {% if proposal.status == 'completed' %}
                 <p class="swap-request-note">Both people confirmed the exchange. This swap is complete and both pieces are marked Already swapped.</p>
                 {% elif proposal.status == 'declined' %}
                 <p class="swap-request-note">This offer was declined. You can continue exploring other pieces.</p>
                 {% elif proposal.status == 'cancelled' %}
                 <p class="swap-request-note">This request was cancelled. Available pieces can be offered again; pieces already swapped remain unavailable.</p>
-                {% elif proposal.status == 'accepted' and proposal.cancellation_requested_by_id %}
+                {% elif proposal.cancellation_requested_by_id %}
                 <p class="swap-request-note">{% if proposal.you_requested_cancellation %}You requested cancellation. Waiting for the other person to agree.{% else %}The other person requested cancellation. Agree to release both pieces, or keep the swap.{% endif %} The pieces stay reserved until you both agree.</p>
-                {% elif not proposal.offered_available or not proposal.requested_available %}
+                {% elif not proposal.requested_available %}
                 <p class="swap-request-note">One of these pieces is no longer available. This request cannot proceed with the current items.</p>
-                {% elif proposal.status == 'accepted' %}
-                <p class="swap-request-note">Both pieces are reserved for this exchange. Only confirm completion after you have received your piece and finished the exchange.</p>
                 {% elif proposal.has_accepted_conflict %}
                 <p class="swap-request-note">One of these pieces is already part of an accepted request. This offer cannot be accepted right now.</p>
+                {% elif proposal.status == 'pending' and not proposal.offered_item_id %}
+                <p class="swap-request-note">{% if is_incoming %}Choose a piece from {{ proposal.sender.username }}'s closet or decline this request.{% else %}Waiting for {{ proposal.recipient.username }} to choose a piece from your closet. Keep your available pieces up to date.{% endif %} Neither piece is reserved yet.</p>
+                {% elif not proposal.offered_available %}
+                <p class="swap-request-note">The selected piece is no longer available. This request cannot proceed with the current items.</p>
+                {% elif proposal.status == 'in_progress' %}
+                <p class="swap-request-note">Both pieces are reserved for this exchange. Only confirm completion after you have received your piece and finished the exchange.{% if proposal.top_up_amount %} Make sure the agreed top-up has also been settled.{% endif %}</p>
+                {% elif proposal.status == 'accepted' %}
+                <p class="swap-request-note">You both agreed to these pieces and terms. Both pieces are reserved. Choose Start exchange when you begin the handover.</p>
+                {% elif proposal.status == 'countered' %}
+                <p class="swap-request-note">{% if is_incoming %}Counter-offer sent. Waiting for {{ proposal.sender.username }} to accept or decline.{% else %}{{ proposal.recipient.username }} chose a piece from your closet. Review both pieces and the terms, then accept or decline.{% endif %} Neither piece is reserved yet.</p>
                 {% else %}
                 <p class="swap-request-note">Discuss the pieces, any top-up, and meeting arrangements in chat. This request is still pending; neither piece is reserved.</p>
                 {% endif %}
-                {% if proposal.status == 'accepted' or proposal.status == 'completed' %}
+                {% if proposal.status == 'in_progress' or proposal.status == 'completed' %}
                 <ul class="swap-completion-progress" aria-label="Completion confirmations">
                     <li>{{ proposal.sender.username }}: {% if proposal.sender_confirmed_at %}confirmed{% else %}not confirmed yet{% endif %}</li>
                     <li>{{ proposal.recipient.username }}: {% if proposal.recipient_confirmed_at %}confirmed{% else %}not confirmed yet{% endif %}</li>
@@ -71,7 +96,7 @@
                 <p class="swap-request-updated">Updated <time datetime="{{ proposal.status_changed_at|date:'c' }}">{{ proposal.status_changed_at|date:'j M Y, H:i' }}</time></p>
                 {% endif %}
                 <div class="swap-request-actions">
-                    {% if proposal.status == 'accepted' %}
+                    {% if proposal.status == 'accepted' or proposal.status == 'in_progress' %}
                     {% if proposal.cancellation_requested_by_id %}
                     {% if not proposal.you_requested_cancellation %}
                     <form method="post" action="{% url 'swap:update_request_status' proposal.pk 'cancel' %}">
@@ -84,7 +109,12 @@
                         <button type="submit" class="swap-secondary">{% if proposal.you_requested_cancellation %}Withdraw cancellation{% else %}Keep swap{% endif %}</button>
                     </form>
                     {% else %}
-                    {% if not proposal.you_confirmed %}
+                    {% if proposal.status == 'accepted' %}
+                    <form method="post" action="{% url 'swap:update_request_status' proposal.pk 'start' %}">
+                        {% csrf_token %}
+                        <button type="submit" class="swap-primary" {% if not proposal.offered_available or not proposal.requested_available %}disabled{% endif %}>Start exchange</button>
+                    </form>
+                    {% elif not proposal.you_confirmed %}
                     <form method="post" action="{% url 'swap:update_request_status' proposal.pk 'complete' %}">
                         {% csrf_token %}
                         <button type="submit" class="swap-primary" {% if not proposal.offered_available or not proposal.requested_available %}disabled{% endif %}>Confirm completed</button>
@@ -98,10 +128,15 @@
                     {% endif %}
                     {% if proposal.status == 'pending' %}
                     {% if is_incoming %}
+                    {% if proposal.requested_available and not proposal.has_accepted_conflict %}
+                    <a class="swap-primary" href="{% url 'swap:counter_offer' proposal.pk %}">Choose counter-offer</a>
+                    {% endif %}
+                    {% if proposal.offered_item_id %}
                     <form method="post" action="{% url 'swap:update_request_status' proposal.pk 'accept' %}">
                         {% csrf_token %}
-                        <button type="submit" class="swap-primary" {% if not proposal.offered_available or not proposal.requested_available or proposal.has_accepted_conflict %}disabled{% endif %}>Accept offer</button>
+                        <button type="submit" class="swap-primary" {% if not proposal.offered_available or not proposal.requested_available or proposal.has_accepted_conflict %}disabled{% endif %}>{% if proposal.top_up_amount %}Accept swap &amp; top-up{% else %}Accept offer{% endif %}</button>
                     </form>
+                    {% endif %}
                     <form method="post" action="{% url 'swap:update_request_status' proposal.pk 'decline' %}">
                         {% csrf_token %}
                         <button type="submit" class="swap-secondary">Decline</button>
@@ -112,6 +147,20 @@
                         <button type="submit" class="swap-secondary">Cancel request</button>
                     </form>
                     {% endif %}
+                    {% endif %}
+                    {% if proposal.status == 'countered' %}
+                    {% if not is_incoming %}
+                    <form method="post" action="{% url 'swap:update_request_status' proposal.pk 'accept' %}">
+                        {% csrf_token %}
+                        <button type="submit" class="swap-primary" {% if not proposal.offered_available or not proposal.requested_available or proposal.has_accepted_conflict %}disabled{% endif %}>{% if proposal.top_up_amount %}Accept swap &amp; top-up{% else %}Accept counter-offer{% endif %}</button>
+                    </form>
+                    <form method="post" action="{% url 'swap:update_request_status' proposal.pk 'decline' %}">
+                        {% csrf_token %}<button type="submit" class="swap-secondary">Decline counter-offer</button>
+                    </form>
+                    {% endif %}
+                    <form method="post" action="{% url 'swap:update_request_status' proposal.pk 'cancel' %}">
+                        {% csrf_token %}<button type="submit" class="swap-secondary">Cancel request</button>
+                    </form>
                     {% endif %}
                     <form method="post" action="{% if is_incoming %}{% url 'chat:start' proposal.sender_id %}{% else %}{% url 'chat:start' proposal.recipient_id %}{% endif %}">
                         {% csrf_token %}
@@ -128,7 +177,7 @@
         {% else %}
         <div class="swap-saved-empty swap-finished">
             <h2>{% if is_incoming %}No incoming requests yet{% else %}No outgoing requests yet{% endif %}</h2>
-            <p>{% if is_incoming %}Requests will appear here when someone offers a piece for yours.{% else %}Choose a saved piece and offer something from your closet to get started.{% endif %}</p>
+            <p>{% if is_incoming %}Requests will appear here when someone is interested in your piece.{% else %}Swipe right on a piece in Discover to send your first request.{% endif %}</p>
             <div class="swap-finished-actions">
                 {% if is_incoming %}
                 <a href="{% url 'closet:my_closet' %}">View My Closet &rarr;</a>

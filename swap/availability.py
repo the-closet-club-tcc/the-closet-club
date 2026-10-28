@@ -4,10 +4,12 @@ from .models import SwapRequest
 
 
 SWAP_STATUSES = (Clothing.Status.BARTER, Clothing.Status.TOP_UP)
+RESERVED_STATUSES = (SwapRequest.Status.ACCEPTED, SwapRequest.Status.IN_PROGRESS)
+ACTIVE_STATUSES = (SwapRequest.Status.PENDING, SwapRequest.Status.COUNTERED, *RESERVED_STATUSES)
 
 
 def reserved_item_ids():
-    accepted = SwapRequest.objects.filter(status=SwapRequest.Status.ACCEPTED).order_by()
+    accepted = SwapRequest.objects.filter(status__in=RESERVED_STATUSES).order_by()
     return accepted.exclude(offered_item=None).values_list('offered_item_id', flat=True).union(
         accepted.exclude(requested_item=None).values_list('requested_item_id', flat=True),
     )

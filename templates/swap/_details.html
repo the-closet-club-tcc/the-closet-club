@@ -1,9 +1,26 @@
 <dialog class="swap-modal" id="swap-modal" aria-labelledby="detail-name">
+    <p class="swap-modal-label">Item details</p>
     <h2 id="detail-name"></h2>
-    <p id="detail-description"></p>
-    <p id="detail-size"></p>
-    <p id="detail-condition"></p>
-    <p id="detail-offer"></p>
-    <p id="detail-owner"></p>
-    <button type="button" id="close-details">Close</button>
+    <p class="swap-modal-description" id="detail-description"></p>
+    <dl class="swap-modal-facts">
+        <div>
+            <dt>Size</dt>
+            <dd id="detail-size"></dd>
+        </div>
+        <div>
+            <dt>Condition</dt>
+            <dd id="detail-condition"></dd>
+        </div>
+        <div>
+            <dt>Offer</dt>
+            <dd><span class="swap-modal-offer" id="detail-offer"></span></dd>
+        </div>
+        <div>
+            <dt>Owner</dt>
+            <dd id="detail-owner"></dd>
+        </div>
+    </dl>
+    <div class="swap-modal-footer">
+        <button type="button" id="close-details">Close</button>
+    </div>
 </dialog>
