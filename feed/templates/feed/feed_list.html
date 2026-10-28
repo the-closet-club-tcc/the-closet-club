@@ -5,7 +5,6 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'css/feed.css' %}">
-<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&display=swap" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
@@ -13,45 +12,112 @@
 
     <!-- HERO BANNER -->
     <section class="feed-hero" aria-labelledby="feed-hero-title">
-        <div class="feed-hero-copy">
-            <p class="feed-hero-kicker"><span class="feed-hero-dot" aria-hidden="true"></span>The Community Feed</p>
-            <h1 id="feed-hero-title">See what the club<br>is <em>wearing.</em></h1>
-            <p class="feed-hero-text">Browse outfits from the community, find pieces you love, and swap them into your own closet.</p>
+
+        <div class="feed-hero-content">
+
+            <p class="feed-hero-kicker">
+                <span class="feed-hero-dot"></span>
+                THE COMMUNITY FEED
+            </p>
+
+            <h1 id="feed-hero-title">
+                See what the club<br>
+                is <em>wearing.</em>
+            </h1>
+
+            <p class="feed-hero-description">
+                Browse outfits from the community, find pieces you love,
+                and swap them into your own closet.
+            </p>
+
             <div class="feed-hero-actions">
+
                 {% if user.is_authenticated %}
-                <a href="{% url 'feed:create' %}" class="btn btn-dark">Post your outfit <i class="bi bi-arrow-right"></i></a>
+                <a href="{% url 'feed:create' %}"
+                   class="feed-hero-btn feed-hero-btn-primary">
+                    Post your outfit <span aria-hidden="true">→</span>
+                </a>
                 {% else %}
-                <a href="{% url 'login' %}?next={% url 'feed:create' %}" class="btn btn-dark">Post your outfit <i class="bi bi-arrow-right"></i></a>
+                <a href="{% url 'register' %}"
+                   class="feed-hero-btn feed-hero-btn-primary">
+                    Join the club <span aria-hidden="true">→</span>
+                </a>
                 {% endif %}
-                <a href="#feed-browse" class="btn btn-ghost">Browse outfits</a>
+
+                <a href="#feed-form"
+                   class="feed-hero-btn feed-hero-btn-outline">
+                    Browse outfits
+                </a>
+
             </div>
         </div>
 
-        <div class="feed-hero-collage" aria-hidden="true">
-            <figure class="hero-polaroid hero-polaroid--tall">
-                <img src="{% static 'img/feed-hero-outfit.jpg' %}" alt="" width="296" height="510">
-            </figure>
-            <figure class="hero-polaroid hero-polaroid--wide">
-                <img src="{% static 'img/feed-hero-shoes.jpg' %}" alt="" width="294" height="348">
-            </figure>
+        <!-- FASHION COLLAGE -->
+        <div class="feed-hero-visual">
+
+            <div class="feed-hero-photo feed-hero-photo-main">
+                <img
+                    src="{% static 'img/feed-hero-outfit.jpg' %}"
+                    alt="Outfit inspiration from the community"
+                >
+            </div>
+
+            <div class="feed-hero-photo feed-hero-photo-small">
+                <img
+                    src="{% static 'img/feed-hero-shoes.jpg' %}"
+                    alt="Casual footwear and outfit details"
+                >
+            </div>
+
+            <!-- COMMUNITY BADGE -->
+            <div class="feed-hero-badge">
+                <svg viewBox="0 0 120 120" aria-hidden="true">
+                    <defs>
+                        <path
+                            id="feed-badge-circle"
+                            d="M60,60 m-41,0 a41,41 0 1,1 82,0 a41,41 0 1,1 -82,0"
+                        />
+                    </defs>
+                    <text>
+                        <textPath href="#feed-badge-circle">
+                            REAL PEOPLE ♥ REAL OUTFITS ♥
+                        </textPath>
+                    </text>
+                </svg>
+                <span class="feed-hero-badge-heart">♡</span>
+            </div>
+
+            <span class="feed-hero-star" aria-hidden="true">✳</span>
+
+            <p class="feed-hero-handwritten">
+                Swap<br>
+                Style<br>
+                Repeat
+                <span></span>
+            </p>
+
         </div>
 
-            <p class="hero-script">Swap<br>Style<br>Repeat
-                <svg viewBox="0 0 110 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 11 C 30 4, 70 4, 107 2"/></svg>
-            </p>
-        </div>
     </section>
 
+
+    <!-- FEED FORM -->
     <form method="get" class="feed-layout" id="feed-form">
 
         <!-- FILTER SIDEBAR -->
         <aside class="filter-panel">
+
             <fieldset class="filter-group">
                 <legend>Size</legend>
                 {% for value, label in size_choices %}
                 <label class="check">
-                    <input type="checkbox" name="size" value="{{ value }}" data-autosubmit
-                           {% if value in selected_sizes %}checked{% endif %}>
+                    <input
+                        type="checkbox"
+                        name="size"
+                        value="{{ value }}"
+                        data-autosubmit
+                        {% if value in selected_sizes %}checked{% endif %}
+                    >
                     <span>{{ label }}</span>
                 </label>
                 {% endfor %}
@@ -61,8 +127,13 @@
                 <legend>Condition</legend>
                 {% for value, label in condition_choices %}
                 <label class="check">
-                    <input type="checkbox" name="condition" value="{{ value }}" data-autosubmit
-                           {% if value in selected_conditions %}checked{% endif %}>
+                    <input
+                        type="checkbox"
+                        name="condition"
+                        value="{{ value }}"
+                        data-autosubmit
+                        {% if value in selected_conditions %}checked{% endif %}
+                    >
                     <span>{{ label }}</span>
                 </label>
                 {% endfor %}
@@ -72,8 +143,13 @@
                 <legend>Offer</legend>
                 {% for value, label in offer_choices %}
                 <label class="check">
-                    <input type="checkbox" name="offer" value="{{ value }}" data-autosubmit
-                           {% if value in selected_offers %}checked{% endif %}>
+                    <input
+                        type="checkbox"
+                        name="offer"
+                        value="{{ value }}"
+                        data-autosubmit
+                        {% if value in selected_offers %}checked{% endif %}
+                    >
                     <span>{{ label }}</span>
                 </label>
                 {% endfor %}
@@ -81,60 +157,122 @@
 
             <div class="filter-actions">
                 <button type="submit" class="btn btn-dark">Apply</button>
-                {% if has_filters %}<a href="{% url 'feed:index' %}" class="btn btn-ghost">Reset</a>{% endif %}
+
+                {% if has_filters %}
+                <a href="{% url 'feed:index' %}" class="btn btn-ghost">
+                    Reset
+                </a>
+                {% endif %}
             </div>
+
         </aside>
 
-        <!-- RESULTS -->
-        <section class="feed-results" id="feed-browse">
+
+        <!-- FEED RESULTS -->
+        <section class="feed-results">
+
             <div class="feed-toolbar">
+
                 <div class="search-box">
-                    <input type="search" name="q" value="{{ q }}" placeholder="Search outfits, users, items">
-                    <button type="submit" aria-label="Search"><i class="bi bi-search"></i></button>
+                    <input
+                        type="search"
+                        name="q"
+                        value="{{ q }}"
+                        placeholder="Search outfits, users, items"
+                        aria-label="Search outfits, users, and items"
+                    >
+                    <button type="submit" aria-label="Search">
+                        <i class="bi bi-search"></i>
+                    </button>
                 </div>
 
                 <div class="sort-pills" role="radiogroup" aria-label="Sort by">
                     {% for key, label in sort_options %}
                     <label class="pill">
-                        <input type="radio" name="sort" value="{{ key }}" data-autosubmit
-                               {% if sort == key %}checked{% endif %}>
-                        <span>{% if sort == key %}<i class="bi bi-check2"></i> {% endif %}{{ label }}</span>
+                        <input
+                            type="radio"
+                            name="sort"
+                            value="{{ key }}"
+                            data-autosubmit
+                            {% if sort == key %}checked{% endif %}
+                        >
+                        <span>
+                            {% if sort == key %}
+                            <i class="bi bi-check2"></i>
+                            {% endif %}
+                            {{ label }}
+                        </span>
                     </label>
                     {% endfor %}
                 </div>
 
                 {% if user.is_authenticated %}
-                <a href="{% url 'feed:create' %}" class="btn btn-dark"><i class="bi bi-plus-lg"></i> Post outfit</a>
+                <a href="{% url 'feed:create' %}" class="btn btn-dark">
+                    <i class="bi bi-plus-lg"></i> Post outfit
+                </a>
                 {% endif %}
+
             </div>
 
+
             {% if page_obj.object_list %}
+
             <div class="feed-grid">
                 {% for post in page_obj %}
-                {% include 'feed/_post_card.html' %}
+                    {% include 'feed/_post_card.html' %}
                 {% endfor %}
             </div>
 
             {% if page_obj.has_other_pages %}
             <nav class="pagination" aria-label="Pagination">
+
                 {% if page_obj.has_previous %}
-                <a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.previous_page_number }}">Previous</a>
+                <a href="?{% if querystring %}{{ querystring }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">
+                    Previous
+                </a>
                 {% endif %}
-                <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+
+                <span>
+                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                </span>
+
                 {% if page_obj.has_next %}
-                <a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.next_page_number }}">Next</a>
+                <a href="?{% if querystring %}{{ querystring }}&amp;{% endif %}page={{ page_obj.next_page_number }}">
+                    Next
+                </a>
                 {% endif %}
+
             </nav>
             {% endif %}
 
             {% else %}
+
             <div class="feed-empty">
-                <h2>{% if has_filters %}No outfits match your filters{% else %}No outfits yet{% endif %}</h2>
-                <p>{% if has_filters %}Try removing a filter or searching for something else.{% elif user.is_authenticated %}Be the first to share what you're wearing.{% else %}Sign in to share the first outfit.{% endif %}</p>
+                <h2>
+                    {% if has_filters %}
+                        No outfits match your filters
+                    {% else %}
+                        No outfits yet
+                    {% endif %}
+                </h2>
+
+                <p>
+                    {% if has_filters %}
+                        Try removing a filter or searching for something else.
+                    {% elif user.is_authenticated %}
+                        Be the first to share what you're wearing.
+                    {% else %}
+                        Sign in to share the first outfit.
+                    {% endif %}
+                </p>
+
             </div>
+
             {% endif %}
+
         </section>
     </form>
+
 </div>
 {% endblock %}
 
