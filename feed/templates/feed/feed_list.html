@@ -5,10 +5,61 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'css/feed.css' %}">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&display=swap" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
 <div class="feed-page">
+
+    <!-- HERO BANNER -->
+    <section class="feed-hero" aria-labelledby="feed-hero-title">
+        <div class="feed-hero-copy">
+            <p class="feed-hero-kicker"><span class="feed-hero-dot" aria-hidden="true"></span>The Community Feed</p>
+            <h1 id="feed-hero-title">See what the club<br>is <em>wearing.</em></h1>
+            <p class="feed-hero-text">Browse outfits from the community, find pieces you love, and swap them into your own closet.</p>
+            <div class="feed-hero-actions">
+                {% if user.is_authenticated %}
+                <a href="{% url 'feed:create' %}" class="btn btn-dark">Post your outfit <i class="bi bi-arrow-right"></i></a>
+                {% else %}
+                <a href="{% url 'login' %}?next={% url 'feed:create' %}" class="btn btn-dark">Post your outfit <i class="bi bi-arrow-right"></i></a>
+                {% endif %}
+                <a href="#feed-browse" class="btn btn-ghost">Browse outfits</a>
+            </div>
+        </div>
+
+        <div class="feed-hero-collage" aria-hidden="true">
+            <svg class="hero-spark" viewBox="0 0 60 60" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+                <path d="M30 4 L29 56"/>
+                <path d="M6 18 L54 42"/>
+                <path d="M7 44 L53 15"/>
+            </svg>
+
+            <figure class="hero-polaroid hero-polaroid--tall">
+                <img src="{% static 'img/feed-hero-outfit.jpg' %}" alt="" width="296" height="510">
+            </figure>
+            <figure class="hero-polaroid hero-polaroid--wide">
+                <img src="{% static 'img/feed-hero-shoes.jpg' %}" alt="" width="294" height="348">
+            </figure>
+
+            <div class="hero-badge">
+                <svg viewBox="0 0 120 120">
+                    <defs>
+                        <path id="hero-badge-top" d="M 22 60 A 38 38 0 0 1 98 60"/>
+                        <path id="hero-badge-bottom" d="M 13 60 A 47 47 0 0 0 107 60"/>
+                    </defs>
+                    <circle cx="60" cy="60" r="60" fill="currentColor"/>
+                    <text><textPath href="#hero-badge-top" startOffset="50%" text-anchor="middle">Real People</textPath></text>
+                    <text><textPath href="#hero-badge-bottom" startOffset="50%" text-anchor="middle">Real Outfits</textPath></text>
+                </svg>
+                <i class="bi bi-heart"></i>
+            </div>
+
+            <p class="hero-script">Swap<br>Style<br>Repeat
+                <svg viewBox="0 0 110 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 11 C 30 4, 70 4, 107 2"/></svg>
+            </p>
+        </div>
+    </section>
+
     <form method="get" class="feed-layout" id="feed-form">
 
         <!-- FILTER SIDEBAR -->
@@ -53,7 +104,7 @@
         </aside>
 
         <!-- RESULTS -->
-        <section class="feed-results">
+        <section class="feed-results" id="feed-browse">
             <div class="feed-toolbar">
                 <div class="search-box">
                     <input type="search" name="q" value="{{ q }}" placeholder="Search outfits, users, items">
