@@ -41,6 +41,7 @@
                     {% if interest.available %}
                     <h2>{{ interest.item.name }}</h2>
                     <p>Size {{ interest.item.get_size_display }} &middot; {{ interest.item.get_condition_display }}</p>
+                    {% if interest.reserved %}<p>This piece is currently reserved for an accepted swap.</p>{% endif %}
                     {% else %}
                     <h2>Item no longer available</h2>
                     <p>This piece is no longer offered for swap. You can remove it from your list.</p>
@@ -51,7 +52,7 @@
                         {% csrf_token %}
                         <button type="submit" class="swap-propose-link swap-secondary">Continue to chat</button>
                     </form>
-                    {% elif interest.available %}
+                    {% elif interest.available and not interest.reserved %}
                     <a class="swap-propose-link swap-primary" href="{% url 'swap:propose' interest.pk %}">Propose swap</a>
                     {% endif %}
 

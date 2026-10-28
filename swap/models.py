@@ -22,6 +22,10 @@ class Interest(models.Model):
 class SwapRequest(models.Model):
     class Status(models.TextChoices):
         PENDING = 'pending', 'Pending'
+        ACCEPTED = 'accepted', 'Accepted'
+        DECLINED = 'declined', 'Declined'
+        CANCELLED = 'cancelled', 'Cancelled'
+        COMPLETED = 'completed', 'Completed'
 
     sender = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
@@ -41,6 +45,14 @@ class SwapRequest(models.Model):
     )
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
     created_at = models.DateTimeField(auto_now_add=True)
+    status_changed_at = models.DateTimeField(null=True, blank=True)
+    sender_confirmed_at = models.DateTimeField(null=True, blank=True)
+    recipient_confirmed_at = models.DateTimeField(null=True, blank=True)
+    cancellation_requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='swap_cancellation_requests',
+    )
+    cancellation_requested_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['-created_at', '-id']

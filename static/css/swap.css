@@ -731,18 +731,55 @@
 
 .swap-request-actions {
     display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
     justify-content: flex-end;
     margin-top: 16px;
 }
 
-.swap-request-actions .swap-primary {
+.swap-request-actions .swap-primary,
+.swap-request-actions .swap-secondary {
     overflow-wrap: anywhere;
     max-width: 100%;
 }
 
+.swap-request-actions button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.swap-request-status-accepted,
+.swap-request-status-completed {
+    background: #e5eadf;
+}
+
+.swap-request-status-declined,
+.swap-request-status-cancelled {
+    background: #f2eeee;
+    color: #685555;
+}
+
+.swap-request-updated {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #5d6258;
+}
+
+.swap-completion-progress {
+    display: grid;
+    gap: 6px;
+    margin-top: 14px;
+    padding: 0;
+    list-style: none;
+    font-size: 12px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
 @media (max-width: 600px) {
     .swap-request-actions form,
-    .swap-request-actions .swap-primary {
+    .swap-request-actions .swap-primary,
+    .swap-request-actions .swap-secondary {
         width: 100%;
     }
 

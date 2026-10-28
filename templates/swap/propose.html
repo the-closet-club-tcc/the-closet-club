@@ -45,7 +45,7 @@
                 <label for="{{ form.offered_item.id_for_label }}">{{ form.offered_item.label }}</label>
                 {{ form.offered_item }}
                 <div id="offer-errors" class="swap-form-errors" {% if form.offered_item.errors %}role="alert"{% endif %}>{{ form.offered_item.errors }}</div>
-                <p class="swap-proposal-hint">Available pieces marked Open to swap or Swap + top-up.</p>
+                <p class="swap-proposal-hint">Available pieces marked Open to swap or Swap + top-up. Pieces in an accepted swap are excluded.</p>
                 <div class="swap-proposal-note">
                     <p>Your offer will be saved, then you'll go straight to chat with {{ item.owner.username }}.</p>
                     <p>Discuss the exchange and any top-up together. Neither piece is reserved yet.</p>
@@ -56,7 +56,7 @@
                 </div>
                 {% else %}
                 <div class="swap-proposal-note">
-                    <p>No available pieces yet. Add a piece in My Closet or mark one as Open to swap to get started.</p>
+                    <p>No available pieces to offer. Add a piece in My Closet or mark one as Open to swap. Pieces already in an accepted swap cannot be offered again.</p>
                 </div>
                 <div class="swap-proposal-actions">
                     <a href="{% url 'closet:my_closet' %}" class="swap-primary">Go to My Closet</a>

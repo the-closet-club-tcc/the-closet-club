@@ -418,6 +418,413 @@ class SwapRequestTests(SwapTestBase):
         self.assertFalse(SwapRequest.objects.exists())
 
 
+class SwapRequestDecisionTests(SwapTestBase):
+    def setUp(self):
+        self.item = self.items[Clothing.Status.BARTER]
+        self.proposal = SwapRequest.objects.create(
+            sender=self.viewer, recipient=self.owner,
+            offered_item=self.own_item, requested_item=self.item,
+        )
+
+    def action_url(self, action):
+        return reverse('swap:update_request_status', args=[self.proposal.pk, action])
+
+    def test_recipient_can_accept_without_marking_items_swapped(self):
+        self.client.force_login(self.owner)
+        self.assertRedirects(self.client.post(self.action_url('accept')), reverse('swap:requests_incoming'))
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.status, SwapRequest.Status.ACCEPTED)
+        self.assertIsNotNone(self.proposal.status_changed_at)
+        for item in (self.item, self.own_item):
+            item.refresh_from_db()
+            self.assertEqual(item.status, Clothing.Status.BARTER)
+        for user, page in ((self.owner, 'swap:requests_incoming'), (self.viewer, 'swap:requests_outgoing')):
+            self.client.force_login(user)
+            response = self.client.get(reverse(page))
+            self.assertContains(response, 'Accepted')
+            self.assertNotContains(response, self.action_url('accept'))
+            self.assertContains(response, 'Request cancellation')
+
+    def test_recipient_can_decline_and_sender_can_cancel(self):
+        for user, action, status, destination in (
+            (self.owner, 'decline', SwapRequest.Status.DECLINED, 'swap:requests_incoming'),
+            (self.viewer, 'cancel', SwapRequest.Status.CANCELLED, 'swap:requests_outgoing'),
+        ):
+            with self.subTest(action=action):
+                SwapRequest.objects.filter(pk=self.proposal.pk).update(status=SwapRequest.Status.PENDING)
+                self.client.force_login(user)
+                self.assertRedirects(self.client.post(self.action_url(action)), reverse(destination))
+                self.proposal.refresh_from_db()
+                self.assertEqual(self.proposal.status, status)
+                self.assertIsNotNone(self.proposal.status_changed_at)
+                self.assertContains(self.client.get(reverse(destination)), self.proposal.get_status_display())
+
+    def test_wrong_participant_or_outsider_cannot_change_status(self):
+        outsider = get_user_model().objects.create_user(username='decision_outsider')
+        for user, actions in (
+            (self.viewer, ('accept', 'decline')),
+            (self.owner, ('cancel',)),
+            (outsider, ('accept', 'decline', 'cancel')),
+        ):
+            self.client.force_login(user)
+            for action in actions:
+                self.assertEqual(self.client.post(self.action_url(action)).status_code, 404)
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.status, SwapRequest.Status.PENDING)
+        self.assertIsNone(self.proposal.status_changed_at)
+
+    def test_decision_requires_login_post_and_csrf(self):
+        self.assertEqual(self.client.post(self.action_url('accept')).status_code, 302)
+        browser = Client(enforce_csrf_checks=True)
+        browser.force_login(self.owner)
+        self.assertEqual(browser.get(self.action_url('accept')).status_code, 405)
+        self.assertEqual(browser.post(self.action_url('accept')).status_code, 403)
+        browser.get(reverse('swap:requests_incoming'))
+        self.assertEqual(browser.post(self.action_url('accept'), {
+            'csrfmiddlewaretoken': browser.cookies['csrftoken'].value,
+        }).status_code, 302)
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.status, SwapRequest.Status.ACCEPTED)
+
+    def test_unknown_action_does_not_change_status(self):
+        self.client.force_login(self.owner)
+        self.assertEqual(self.client.post(self.action_url('unknown')).status_code, 400)
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.status, SwapRequest.Status.PENDING)
+
+    def test_final_decision_cannot_be_overwritten_by_stale_buttons(self):
+        for first_action, user in (('decline', self.owner), ('cancel', self.viewer)):
+            SwapRequest.objects.filter(pk=self.proposal.pk).update(status=SwapRequest.Status.PENDING)
+            self.client.force_login(user)
+            self.client.post(self.action_url(first_action))
+            self.proposal.refresh_from_db()
+            original = (self.proposal.status, self.proposal.status_changed_at)
+            for action, actor in (('accept', self.owner), ('decline', self.owner), ('cancel', self.viewer)):
+                self.client.force_login(actor)
+                self.client.post(self.action_url(action))
+                self.proposal.refresh_from_db()
+                self.assertEqual((self.proposal.status, self.proposal.status_changed_at), original)
+
+    def test_unavailable_or_changed_owner_items_cannot_be_accepted(self):
+        self.client.force_login(self.owner)
+        for item in (self.item, self.own_item):
+            for status in (Clothing.Status.PERSONAL, Clothing.Status.DONATE, Clothing.Status.SWAPPED):
+                Clothing.objects.filter(pk=item.pk).update(status=status)
+                self.client.post(self.action_url('accept'))
+                self.proposal.refresh_from_db()
+                self.assertEqual(self.proposal.status, SwapRequest.Status.PENDING)
+            Clothing.objects.filter(pk=item.pk).update(status=Clothing.Status.BARTER)
+        Clothing.objects.filter(pk=self.own_item.pk).update(owner=self.owner)
+        self.client.post(self.action_url('accept'))
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.status, SwapRequest.Status.PENDING)
+
+    def test_deleted_item_can_be_declined_but_not_accepted(self):
+        Clothing.objects.filter(pk=self.own_item.pk).update(photo='')
+        self.own_item.delete()
+        self.client.force_login(self.owner)
+        self.client.post(self.action_url('accept'))
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.status, SwapRequest.Status.PENDING)
+        self.client.post(self.action_url('decline'))
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.status, SwapRequest.Status.DECLINED)
+
+    def test_overlapping_items_in_either_position_cannot_be_accepted_twice(self):
+        self.client.force_login(self.owner)
+        self.client.post(self.action_url('accept'))
+        other = get_user_model().objects.create_user(username='another_sender')
+        other_item = Clothing.objects.create(owner=other, name='Another piece', status=Clothing.Status.BARTER)
+        for offered, requested, sender, recipient in (
+            (other_item, self.item, other, self.owner),
+            (self.own_item, other_item, self.viewer, other),
+            (self.item, other_item, self.owner, other),
+            (other_item, self.own_item, other, self.viewer),
+        ):
+            proposal = SwapRequest.objects.create(
+                sender=sender, recipient=recipient, offered_item=offered, requested_item=requested,
+            )
+            self.client.force_login(recipient)
+            self.client.post(reverse('swap:update_request_status', args=[proposal.pk, 'accept']))
+            proposal.refresh_from_db()
+            self.assertEqual(proposal.status, SwapRequest.Status.PENDING)
+        self.assertEqual(SwapRequest.objects.filter(status=SwapRequest.Status.ACCEPTED).count(), 1)
+
+    def test_declined_or_cancelled_request_allows_new_offer(self):
+        interest = Interest.objects.create(user=self.viewer, item=self.item)
+        for status in (SwapRequest.Status.DECLINED, SwapRequest.Status.CANCELLED):
+            SwapRequest.objects.filter(sender=self.viewer, requested_item=self.item).update(status=status)
+            self.client.force_login(self.viewer)
+            self.client.post(reverse('swap:propose', args=[interest.pk]), {'offered_item': self.own_item.pk})
+            self.assertEqual(SwapRequest.objects.filter(status=SwapRequest.Status.PENDING).count(), 1)
+
+    def test_accepted_request_continues_chat_instead_of_creating_duplicate_offer(self):
+        interest = Interest.objects.create(user=self.viewer, item=self.item)
+        self.client.force_login(self.owner)
+        self.client.post(self.action_url('accept'))
+        self.client.force_login(self.viewer)
+        response = self.client.post(reverse('swap:propose', args=[interest.pk]), {'offered_item': self.own_item.pk})
+        self.assertRedirects(response, reverse('chat:room', args=[Conversation.objects.get().pk]))
+        self.assertEqual(SwapRequest.objects.count(), 1)
+        self.assertContains(self.client.get(reverse('swap:interested')), 'Continue to chat')
+
+    def test_buttons_match_participant_role(self):
+        self.client.force_login(self.owner)
+        incoming = self.client.get(reverse('swap:requests_incoming'))
+        self.assertContains(incoming, self.action_url('accept'))
+        self.assertContains(incoming, self.action_url('decline'))
+        self.assertNotContains(incoming, self.action_url('cancel'))
+        self.client.force_login(self.viewer)
+        outgoing = self.client.get(reverse('swap:requests_outgoing'))
+        self.assertContains(outgoing, self.action_url('cancel'))
+        self.assertNotContains(outgoing, self.action_url('accept'))
+        self.assertNotContains(outgoing, self.action_url('decline'))
+
+
+class SwapLifecycleTests(SwapTestBase):
+    def setUp(self):
+        self.item = self.items[Clothing.Status.BARTER]
+        self.proposal = SwapRequest.objects.create(
+            sender=self.viewer, recipient=self.owner,
+            offered_item=self.own_item, requested_item=self.item,
+            status=SwapRequest.Status.ACCEPTED,
+        )
+        self.outsider = get_user_model().objects.create_user(username='lifecycle_outsider')
+        self.third_item = Clothing.objects.create(
+            owner=self.outsider, name='Third piece', status=Clothing.Status.TOP_UP,
+        )
+
+    def action_url(self, action):
+        return reverse('swap:update_request_status', args=[self.proposal.pk, action])
+
+    def act(self, user, action):
+        self.client.force_login(user)
+        response = self.client.post(self.action_url(action))
+        self.proposal.refresh_from_db()
+        return response
+
+    def test_both_people_must_confirm_in_either_order(self):
+        for first, second in ((self.viewer, self.owner), (self.owner, self.viewer)):
+            with self.subTest(first=first.username):
+                SwapRequest.objects.filter(pk=self.proposal.pk).update(
+                    status=SwapRequest.Status.ACCEPTED, sender_confirmed_at=None, recipient_confirmed_at=None,
+                )
+                Clothing.objects.filter(pk__in=[self.item.pk, self.own_item.pk]).update(status=Clothing.Status.BARTER)
+                self.act(first, 'complete')
+                self.assertEqual(self.proposal.status, SwapRequest.Status.ACCEPTED)
+                self.assertEqual(bool(self.proposal.sender_confirmed_at), first == self.viewer)
+                self.assertEqual(bool(self.proposal.recipient_confirmed_at), first == self.owner)
+                self.item.refresh_from_db()
+                self.own_item.refresh_from_db()
+                self.assertEqual(self.item.status, Clothing.Status.BARTER)
+                self.assertEqual(self.own_item.status, Clothing.Status.BARTER)
+                self.act(second, 'complete')
+                self.assertEqual(self.proposal.status, SwapRequest.Status.COMPLETED)
+                self.assertIsNotNone(self.proposal.sender_confirmed_at)
+                self.assertIsNotNone(self.proposal.recipient_confirmed_at)
+                self.item.refresh_from_db()
+                self.own_item.refresh_from_db()
+                self.assertEqual(self.item.status, Clothing.Status.SWAPPED)
+                self.assertEqual(self.own_item.status, Clothing.Status.SWAPPED)
+                self.assertEqual(self.item.owner_id, self.owner.pk)
+                self.assertEqual(self.own_item.owner_id, self.viewer.pk)
+
+    def test_repeat_confirmation_cannot_confirm_for_other_person(self):
+        self.act(self.viewer, 'complete')
+        first_time = self.proposal.sender_confirmed_at
+        self.client.post(self.action_url('complete'), {'recipient_confirmed_at': '2026-10-27', 'status': 'completed'})
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.sender_confirmed_at, first_time)
+        self.assertIsNone(self.proposal.recipient_confirmed_at)
+        self.assertEqual(self.proposal.status, SwapRequest.Status.ACCEPTED)
+
+    def test_completion_is_terminal_and_history_still_shows_pieces(self):
+        self.act(self.viewer, 'complete')
+        self.act(self.owner, 'complete')
+        completion_time = self.proposal.status_changed_at
+        for user in (self.viewer, self.owner):
+            for action in ('complete', 'cancel', 'keep'):
+                self.act(user, action)
+                self.assertEqual(self.proposal.status, SwapRequest.Status.COMPLETED)
+                self.assertEqual(self.proposal.status_changed_at, completion_time)
+        self.client.force_login(self.viewer)
+        response = self.client.get(reverse('swap:requests_outgoing'))
+        self.assertContains(response, 'Completed')
+        self.assertContains(response, self.item.name)
+        self.assertContains(response, self.own_item.name)
+        self.assertNotContains(response, 'Confirm completed')
+        self.assertNotContains(response, 'Request cancellation')
+
+    def test_accepted_items_are_excluded_from_discovery_in_all_filters(self):
+        self.client.force_login(self.outsider)
+        for status in ('', 'barter', 'top_up'):
+            response = self.client.get(reverse('swap:index'), {'status': status})
+            self.assertNotIn(self.item, response.context['items'])
+            self.assertNotIn(self.own_item, response.context['items'])
+        for item in (self.item, self.own_item):
+            response = self.client.post(reverse('swap:save_interest', args=[item.pk]))
+            self.assertEqual(response.status_code, 404)
+
+    def test_reserved_target_cannot_receive_new_offer_and_is_labelled_in_saved_list(self):
+        interest = Interest.objects.create(user=self.outsider, item=self.item)
+        self.client.force_login(self.outsider)
+        url = reverse('swap:propose', args=[interest.pk])
+        response = self.client.get(reverse('swap:interested'))
+        self.assertContains(response, 'currently reserved')
+        self.assertNotContains(response, f'href="{url}"')
+        self.assertEqual(self.client.post(url, {'offered_item': self.third_item.pk}).status_code, 400)
+        self.assertEqual(SwapRequest.objects.count(), 1)
+
+    def test_reserved_own_item_is_excluded_from_form_and_rejected_on_post(self):
+        interest = Interest.objects.create(user=self.viewer, item=self.third_item)
+        self.client.force_login(self.viewer)
+        url = reverse('swap:propose', args=[interest.pk])
+        response = self.client.get(url)
+        self.assertNotIn(self.own_item, response.context['form'].fields['offered_item'].queryset)
+        self.assertEqual(self.client.post(url, {'offered_item': self.own_item.pk}).status_code, 400)
+        self.assertEqual(SwapRequest.objects.count(), 1)
+
+    def test_cancellation_needs_both_people_and_releases_pieces(self):
+        for first, second in ((self.viewer, self.owner), (self.owner, self.viewer)):
+            with self.subTest(first=first.username):
+                SwapRequest.objects.filter(pk=self.proposal.pk).update(
+                    status=SwapRequest.Status.ACCEPTED,
+                    cancellation_requested_by=None, cancellation_requested_at=None,
+                )
+                self.act(first, 'cancel')
+                self.assertEqual(self.proposal.status, SwapRequest.Status.ACCEPTED)
+                self.assertEqual(self.proposal.cancellation_requested_by_id, first.pk)
+                self.act(first, 'cancel')
+                self.assertEqual(self.proposal.status, SwapRequest.Status.ACCEPTED)
+                self.client.force_login(self.outsider)
+                self.assertNotIn(self.item, self.client.get(reverse('swap:index')).context['items'])
+                self.act(second, 'cancel')
+                self.assertEqual(self.proposal.status, SwapRequest.Status.CANCELLED)
+                self.client.force_login(self.outsider)
+                items = self.client.get(reverse('swap:index')).context['items']
+                self.assertIn(self.item, items)
+                self.assertIn(self.own_item, items)
+                self.item.refresh_from_db()
+                self.assertEqual(self.item.status, Clothing.Status.BARTER)
+
+    def test_requested_cancellation_blocks_completion_until_dismissed(self):
+        self.act(self.viewer, 'complete')
+        self.act(self.owner, 'cancel')
+        self.act(self.owner, 'complete')
+        self.assertEqual(self.proposal.status, SwapRequest.Status.ACCEPTED)
+        self.assertIsNone(self.proposal.recipient_confirmed_at)
+        self.act(self.viewer, 'keep')
+        self.assertIsNone(self.proposal.cancellation_requested_by_id)
+        self.assertIsNone(self.proposal.cancellation_requested_at)
+        self.act(self.owner, 'complete')
+        self.assertEqual(self.proposal.status, SwapRequest.Status.COMPLETED)
+
+    def test_cancellation_can_be_withdrawn_by_requester(self):
+        self.act(self.owner, 'cancel')
+        self.act(self.owner, 'keep')
+        self.assertEqual(self.proposal.status, SwapRequest.Status.ACCEPTED)
+        self.assertIsNone(self.proposal.cancellation_requested_by_id)
+
+    def test_cancellation_after_one_confirmation_does_not_mark_items_swapped(self):
+        self.act(self.viewer, 'complete')
+        self.act(self.viewer, 'cancel')
+        self.act(self.owner, 'cancel')
+        self.act(self.owner, 'complete')
+        self.assertEqual(self.proposal.status, SwapRequest.Status.CANCELLED)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.status, Clothing.Status.BARTER)
+
+    def test_unavailable_items_block_completion_but_can_still_cancel(self):
+        self.act(self.viewer, 'complete')
+        Clothing.objects.filter(pk=self.item.pk).update(status=Clothing.Status.PERSONAL)
+        self.act(self.owner, 'complete')
+        self.assertEqual(self.proposal.status, SwapRequest.Status.ACCEPTED)
+        self.assertIsNone(self.proposal.recipient_confirmed_at)
+        self.act(self.viewer, 'cancel')
+        self.act(self.owner, 'cancel')
+        self.assertEqual(self.proposal.status, SwapRequest.Status.CANCELLED)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.status, Clothing.Status.PERSONAL)
+
+    def test_deleted_item_blocks_completion_without_partial_update(self):
+        self.act(self.viewer, 'complete')
+        Clothing.objects.filter(pk=self.item.pk).update(photo='')
+        self.item.delete()
+        self.act(self.owner, 'complete')
+        self.assertEqual(self.proposal.status, SwapRequest.Status.ACCEPTED)
+        self.assertIsNone(self.proposal.recipient_confirmed_at)
+        self.own_item.refresh_from_db()
+        self.assertEqual(self.own_item.status, Clothing.Status.BARTER)
+
+    def test_ownership_change_blocks_completion(self):
+        self.act(self.viewer, 'complete')
+        Clothing.objects.filter(pk=self.own_item.pk).update(owner=self.outsider)
+        self.act(self.owner, 'complete')
+        self.assertEqual(self.proposal.status, SwapRequest.Status.ACCEPTED)
+        self.assertIsNone(self.proposal.recipient_confirmed_at)
+
+    def test_other_pending_offers_for_completed_pieces_are_closed(self):
+        overlap = SwapRequest.objects.create(
+            sender=self.outsider, recipient=self.owner,
+            offered_item=self.third_item, requested_item=self.item,
+        )
+        unrelated = SwapRequest.objects.create(
+            sender=self.outsider, recipient=self.owner,
+            offered_item=self.third_item, requested_item=self.items[Clothing.Status.TOP_UP],
+        )
+        self.act(self.viewer, 'complete')
+        self.act(self.owner, 'complete')
+        overlap.refresh_from_db()
+        unrelated.refresh_from_db()
+        self.assertEqual(overlap.status, SwapRequest.Status.CANCELLED)
+        self.assertEqual(unrelated.status, SwapRequest.Status.PENDING)
+        self.third_item.refresh_from_db()
+        self.assertEqual(self.third_item.status, Clothing.Status.TOP_UP)
+
+    def test_only_participants_can_confirm_cancel_or_keep(self):
+        for action in ('complete', 'cancel', 'keep'):
+            self.assertEqual(self.act(self.outsider, action).status_code, 404)
+        self.assertIsNone(self.proposal.sender_confirmed_at)
+        self.assertIsNone(self.proposal.recipient_confirmed_at)
+        self.assertIsNone(self.proposal.cancellation_requested_by_id)
+
+    def test_new_actions_require_post_and_csrf(self):
+        browser = Client(enforce_csrf_checks=True)
+        browser.force_login(self.viewer)
+        for action in ('complete', 'cancel', 'keep'):
+            self.assertEqual(browser.get(self.action_url(action)).status_code, 405)
+            self.assertEqual(browser.post(self.action_url(action)).status_code, 403)
+        browser.get(reverse('swap:requests_outgoing'))
+        self.assertEqual(browser.post(self.action_url('complete'), {
+            'csrfmiddlewaretoken': browser.cookies['csrftoken'].value,
+        }).status_code, 302)
+        self.proposal.refresh_from_db()
+        self.assertIsNotNone(self.proposal.sender_confirmed_at)
+
+    def test_pending_request_cannot_be_completed(self):
+        SwapRequest.objects.filter(pk=self.proposal.pk).update(status=SwapRequest.Status.PENDING)
+        self.act(self.viewer, 'complete')
+        self.act(self.owner, 'complete')
+        self.assertEqual(self.proposal.status, SwapRequest.Status.PENDING)
+        self.assertIsNone(self.proposal.sender_confirmed_at)
+        self.assertIsNone(self.proposal.recipient_confirmed_at)
+
+    def test_confirmation_and_cancellation_controls_reflect_each_person(self):
+        self.act(self.viewer, 'complete')
+        response = self.client.get(reverse('swap:requests_outgoing'))
+        self.assertNotContains(response, 'Confirm completed')
+        self.assertContains(response, f'{self.viewer.username}: confirmed')
+        self.act(self.viewer, 'cancel')
+        response = self.client.get(reverse('swap:requests_outgoing'))
+        self.assertContains(response, 'Withdraw cancellation')
+        self.assertNotContains(response, 'Agree to cancel')
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse('swap:requests_incoming'))
+        self.assertContains(response, 'Agree to cancel')
+        self.assertContains(response, 'Keep swap')
+        self.assertNotContains(response, 'Confirm completed')
+
+
 class SwapChatIntegrationTests(SwapTestBase):
     def setUp(self):
         self.item = self.items[Clothing.Status.BARTER]
