@@ -68,8 +68,8 @@
 .feed-hero .btn-dark:hover { background: var(--feed-ink); }
 .feed-hero .btn-ghost { border-color: #b9b2a0; }
 
-/* collage */
-.feed-hero-collage { position: relative; align-self: stretch; min-height: 340px; color: var(--feed-green); }
+/* photo collage */
+.feed-hero-collage { position: relative; align-self: stretch; min-height: 340px; }
 
 .hero-polaroid {
     position: absolute;
@@ -80,46 +80,8 @@
 }
 .hero-polaroid img { display: block; width: 100%; height: auto; }
 
-.hero-polaroid--tall { top: 0; right: 21%; width: 44%; max-width: 250px; transform: rotate(5deg); }
-.hero-polaroid--wide { bottom: 0; left: 0; width: 42%; max-width: 240px; transform: rotate(-6deg); z-index: 1; }
-
-.hero-spark { position: absolute; top: 10%; left: 8%; width: 54px; height: 54px; }
-
-.hero-badge {
-    position: absolute;
-    top: 14%;
-    right: 8%;
-    z-index: 2;
-    width: 92px;
-    height: 92px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--feed-green);
-}
-.hero-badge svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-.hero-badge text {
-    fill: #f6eee3;
-    font-family: 'Work Sans', sans-serif;
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 2.2px;
-    text-transform: uppercase;
-}
-.hero-badge .bi { position: relative; color: #f6eee3; font-size: 18px; }
-
-.hero-script {
-    position: absolute;
-    right: 1%;
-    bottom: 8%;
-    margin: 0;
-    font-family: 'Caveat', cursive;
-    font-size: 24px;
-    line-height: 1.05;
-    color: var(--feed-green);
-    transform: rotate(-12deg);
-}
-.hero-script svg { display: block; width: 88px; height: 12px; margin-top: 6px; }
+.hero-polaroid--tall { top: 0; right: 12%; width: 46%; max-width: 270px; transform: rotate(5deg); }
+.hero-polaroid--wide { bottom: 0; left: 4%; width: 44%; max-width: 250px; transform: rotate(-6deg); z-index: 1; }
 
 /* ---------- Layout: sidebar + results ---------- */
 .feed-layout {
@@ -342,14 +304,12 @@
 @media (max-width: 960px) {
     .feed-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-
 @media (max-width: 860px) {
     .feed-hero { grid-template-columns: 1fr; padding: 32px 24px 24px; }
     .feed-hero-collage { min-height: 320px; }
-    .hero-polaroid--tall { right: 24%; width: 38%; }
-    .hero-polaroid--wide { left: 6%; width: 36%; }
+    .hero-polaroid--tall { right: 18%; width: 40%; }
+    .hero-polaroid--wide { left: 8%; width: 38%; }
 }
-
 @media (max-width: 760px) {
     .feed-layout { grid-template-columns: 1fr; }
     .filter-panel { position: static; }
@@ -359,6 +319,4 @@
 @media (max-width: 480px) {
     .feed-grid { grid-template-columns: 1fr; }
     .feed-hero-collage { min-height: 280px; }
-    .hero-badge { width: 76px; height: 76px; }
-    .hero-script { font-size: 20px; }
 }
