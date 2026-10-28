@@ -20,6 +20,12 @@ def ensure_swap_card(conversation, swap_request):
         conversation.save(update_fields=['updated_at'])
     return msg
 
+def post_swap_update(conversation, actor, text):
+    return Message.objects.create(
+        conversation=conversation, sender=actor,
+        message_type=Message.MessageType.TEXT, content=text,
+    )
+
 def users_blocked(user_a_id, user_b_id):
     return Block.objects.filter(
         Q(blocker_id=user_a_id, blocked_id=user_b_id)

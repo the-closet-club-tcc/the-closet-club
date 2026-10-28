@@ -18,6 +18,22 @@
 {% endblock %}
 
 {% block content %}
+{% if messages %}
+<div id="flash-stack" style="position:fixed;top:92px;left:50%;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:8px;width:min(92vw,420px);">
+  {% for message in messages %}
+  <div role="status" style="padding:12px 16px;border-radius:12px;font-size:14px;font-weight:600;box-shadow:0 8px 24px rgba(52,69,54,.18);
+       {% if message.tags == 'error' %}background:#F2D5D0;color:#8E2A1F;border:1px solid #F0B8B0;{% else %}background:#344536;color:#fff;{% endif %}">
+    {{ message }}
+  </div>
+  {% endfor %}
+</div>
+<script>
+  setTimeout(function () {
+    var el = document.getElementById('flash-stack');
+    if (el) el.remove();
+  }, 4000);
+</script>
+{% endif %}
 <div class="chat-root mx-auto flex max-w-6xl overflow-hidden bg-white font-sans md:my-6 md:rounded-2xl md:shadow"
      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 

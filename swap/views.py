@@ -9,7 +9,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from closet.models import Clothing
 from chat.models import Conversation
-from chat.services import ensure_swap_card, users_blocked
+from chat.services import ensure_swap_card, post_swap_update, users_blocked
 
 from .forms import SwapRequestForm
 from .models import Interest, SwapRequest
@@ -169,6 +169,9 @@ def _back_to_chat(sr):
     ).first()
     return redirect('chat:room', conversation_id=conv.pk) if conv else redirect('swap:requests_incoming')
 
+def _notify(sr, actor, text):
+    conv = _get_or_create_conversation(sr.sender_id, sr.recipient_id)
+    post_swap_update(conv, actor, text)
 
 def _lock(request, pk):
     sr = get_object_or_404(
@@ -188,6 +191,7 @@ def decline_swap(request, pk):
             sr.status = S.DECLINED
             sr.save(update_fields=['status'])
             messages.success(request, 'Swap request declined.')
+            _notify(sr, request.user, 'Swap request declined.')
     return _back_to_chat(sr)
 
 
@@ -213,6 +217,7 @@ def choose_counter(request, pk):
                 sr.status = S.COUNTER_PROPOSED
                 sr.save(update_fields=['offered_item', 'status'])
                 messages.success(request, 'Counter offer sent.')
+                _notify(sr, request.user, f'Counter offer sent: {picked.name}. Waiting for your confirmation.')
                 return _back_to_chat(sr)
         messages.error(request, 'That piece is not available. Choose another.')
     return render(request, 'swap/choose_counter.html', {'swap_request': sr, 'choices': choices})
@@ -239,6 +244,7 @@ def agree_swap(request, pk):
             Q(requested_item__in=[a, b]) | Q(offered_item__in=[a, b])
         ).update(status=S.DECLINED)
         messages.success(request, 'Swap agreed. Complete the exchange before leaving a review.')
+        _notify(sr, request.user, 'Swap agreed. Complete the exchange when you meet.')
     return _back_to_chat(sr)
 
 
@@ -259,7 +265,23 @@ def complete_swap(request, pk):
                 pk__in=[sr.requested_item_id, sr.offered_item_id]
             ).update(status=Clothing.Status.SWAPPED)
             messages.success(request, 'Swap completed.')
+            _notify(sr, request.user, 'Swap completed.')
         else:
             messages.success(request, 'Confirmed. Waiting for the other person.')
+            _notify(sr, request.user, 'I have confirmed the exchange.')
         sr.save()
+    return _back_to_chat(sr)
+
+@login_required(login_url='login')
+@require_POST
+def cancel_swap(request, pk):
+    with transaction.atomic():
+        sr = _lock(request, pk)
+        if sr.status == S.AGREED:
+            sr.status = S.CANCELLED
+            sr.sender_confirmed = False
+            sr.recipient_confirmed = False
+            sr.save(update_fields=['status', 'sender_confirmed', 'recipient_confirmed'])
+            messages.success(request, 'Swap cancelled.')
+            _notify(sr, request.user, 'Swap cancelled.')
     return _back_to_chat(sr)
