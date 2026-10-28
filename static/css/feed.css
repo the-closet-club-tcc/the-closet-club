@@ -251,7 +251,7 @@
     min-height: 340px;
     margin-bottom: 32px;
     padding: clamp(28px, 4vw, 56px);
-    background-color: var(--feed-green);
+    background-color: #344536;
     border-radius: 24px;
     overflow: hidden;
 }
@@ -263,6 +263,7 @@
     right: 0;
     width: 55%;
     height: 100%;
+    max-width: 100%;
     object-fit: cover;
     object-position: center 55%;
     -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 45%);
@@ -315,15 +316,18 @@
     border-radius: 40px;
     font-size: 15px;
     font-weight: 600;
+    text-decoration: none;
     transition: background .15s ease, color .15s ease, transform .15s ease;
 }
 .feed-hero-btn:hover { transform: translateY(-1px); }
 .feed-hero-btn:focus-visible { outline: 2px solid #f6eee3; outline-offset: 3px; }
 
-.feed-hero-btn-primary { background: #f6eee3; color: var(--feed-green); }
+.feed-hero-btn-primary,
+.feed-hero-btn-primary:visited { background: #f6eee3; color: #344536; }
 .feed-hero-btn-primary:hover { background: #fff; }
 
-.feed-hero-btn-outline { border-color: rgba(246, 238, 227, .6); color: #f6eee3; }
+.feed-hero-btn-outline,
+.feed-hero-btn-outline:visited { border-color: rgba(246, 238, 227, .6); color: #f6eee3; }
 .feed-hero-btn-outline:hover { background: rgba(246, 238, 227, .12); }
 
 /* smooth scroll to the feed when "Browse outfits" is clicked */
