@@ -125,16 +125,6 @@
         <button type="button" id="safety-dismiss" aria-label="Tutup pengingat"><i class="bi bi-x-lg"></i></button>
       </div>
 
-      {% if active.item_name %}
-      <div class="mx-4 mt-4 flex items-center gap-3 rounded-xl bg-[#EFE5D8] p-3 md:mx-6">
-        <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[#D9C7AF] text-xl text-[#344536]"><i class="bi bi-handbag"></i></div>
-        <div class="min-w-0 flex-1">
-          <p class="text-[10px] uppercase tracking-widest text-gray-500">Item yang dibicarakan</p>
-          <p class="truncate font-semibold">{{ active.item_name }}</p>
-        </div>
-      </div>
-      {% endif %}
-
       <div id="messages" class="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 md:px-6"
            hx-get="{% url 'chat:messages' active.id %}"
            hx-trigger="every 3s [!document.querySelector('.editing') && document.visibilityState === 'visible']"

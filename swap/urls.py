@@ -15,5 +15,6 @@ urlpatterns = [
     path('requests/<int:pk>/counter/', views.choose_counter, name='choose_counter'),
     path('requests/<int:pk>/agree/', views.agree_swap, name='agree'),
     path('requests/<int:pk>/complete/', views.complete_swap, name='complete'),
-    path('requests/<int:pk>/cancel/', views.cancel_swap, name='cancel'),    
+    path('requests/<int:pk>/cancel/', views.cancel_swap, name='cancel'),
+    path('requests/<int:pk>/chat/', views.open_request_chat, name='open_chat'),     
 ]

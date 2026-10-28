@@ -146,16 +146,20 @@ def swap_requests(request, direction='incoming'):
         **({'recipient': request.user} if is_incoming else {'sender': request.user}),
     ).select_related('sender', 'recipient', 'offered_item', 'requested_item')
     for swap_request in requests:
-        swap_request.offered_available = (
-            swap_request.offered_item is not None
-            and swap_request.offered_item.status in SWAP_STATUSES
-            and swap_request.offered_item.owner_id == swap_request.sender_id
-        )
-        swap_request.requested_available = (
-            swap_request.requested_item is not None
-            and swap_request.requested_item.status in SWAP_STATUSES
-            and swap_request.requested_item.owner_id == swap_request.recipient_id
-        )
+        if swap_request.status in ACTIVE_STATUSES:
+            swap_request.offered_available = (
+                swap_request.offered_item is None
+                or (swap_request.offered_item.status in SWAP_STATUSES
+                    and swap_request.offered_item.owner_id == swap_request.sender_id)
+            )
+            swap_request.requested_available = (
+                swap_request.requested_item is not None
+                and swap_request.requested_item.status in SWAP_STATUSES
+                and swap_request.requested_item.owner_id == swap_request.recipient_id
+            )
+        else:
+            swap_request.offered_available = swap_request.offered_item is not None
+            swap_request.requested_available = swap_request.requested_item is not None
     return render(request, 'swap/requests.html', {
         'swap_requests': requests, 'is_incoming': is_incoming,
     })
@@ -285,3 +289,14 @@ def cancel_swap(request, pk):
             messages.success(request, 'Swap cancelled.')
             _notify(sr, request.user, 'Swap cancelled.')
     return _back_to_chat(sr)
+
+@login_required(login_url='login')
+def open_request_chat(request, pk):
+    sr = get_object_or_404(SwapRequest, pk=pk)
+    if request.user.pk not in (sr.sender_id, sr.recipient_id):
+        raise Http404
+    conv = _get_or_create_conversation(sr.sender_id, sr.recipient_id)
+    if users_blocked(sr.sender_id, sr.recipient_id):
+        raise Http404    
+    ensure_swap_card(conv, sr)
+    return redirect('chat:room', conversation_id=conv.pk)

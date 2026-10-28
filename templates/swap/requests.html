@@ -44,20 +44,15 @@
                     {% include 'swap/_request_item.html' with item=proposal.requested_item available=proposal.requested_available label='Requested piece' only %}
                     {% endif %}
                 </div>
-                {% if not proposal.offered_available or not proposal.requested_available %}
-                <p class="swap-request-note">One of these pieces is no longer available. This request cannot proceed with the current items.</p>
-                {% else %}
-                <p class="swap-request-note">Discuss the pieces, any top-up, and meeting arrangements in chat. This request is still pending; neither piece is reserved.</p>
+                {% if proposal.status == 'pending' %}
+                <p class="swap-request-note">Waiting for the recipient to choose a piece from the sender's closet. Discuss details in chat.</p>
+                {% elif proposal.status == 'counter_proposed' %}
+                <p class="swap-request-note">A counter offer was made. The sender needs to agree or decline in chat.</p>
+                {% elif proposal.status == 'agreed' %}
+                <p class="swap-request-note">Agreed. Meet up, then both of you confirm the exchange in chat.</p>
                 {% endif %}
                 <div class="swap-request-actions">
-                    <form method="post" action="{% if is_incoming %}{% url 'chat:start' proposal.sender_id %}{% else %}{% url 'chat:start' proposal.recipient_id %}{% endif %}">
-                        {% csrf_token %}
-                        {% if proposal.requested_available %}
-                        <input type="hidden" name="item_id" value="{{ proposal.requested_item_id }}">
-                        <input type="hidden" name="item_name" value="{{ proposal.requested_item.name }}">
-                        {% endif %}
-                        <button type="submit" class="swap-primary">Chat with {% if is_incoming %}{{ proposal.sender.username }}{% else %}{{ proposal.recipient.username }}{% endif %}</button>
-                    </form>
+                    <a href="{% url 'swap:open_chat' proposal.pk %}" class="swap-primary">Open chat with {% if is_incoming %}{{ proposal.sender.username }}{% else %}{{ proposal.recipient.username }}{% endif %}</a>
                 </div>
             </article>
             {% endfor %}
