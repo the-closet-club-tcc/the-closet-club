@@ -1,7 +1,7 @@
 from django import forms
 from django.core.files.uploadedfile import UploadedFile
 
-from .models import Clothing
+from .models import Clothing, delete_stored_file
 
 MAX_PHOTO_MB = 5
 
@@ -29,18 +29,24 @@ class ClothingForm(forms.ModelForm):
             }),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, status_locked=False, **kwargs):
         super().__init__(*args, **kwargs)
         # Simpan nama foto lama untuk dihapus kalau foto diganti
         self._old_photo = (
             self.instance.photo.name if self.instance.pk and self.instance.photo else None
         )
-        # Item baru tidak mungkin langsung berstatus "Already swapped"
-        if not self.instance.pk:
+        # "Already swapped" hanya diatur oleh modul Swap, jadi tidak bisa dipilih manual
+        if self.instance.status != Clothing.Status.SWAPPED:
             self.fields['status'].choices = [
                 c for c in self.fields['status'].choices
                 if c[0] != Clothing.Status.SWAPPED
             ]
+        if status_locked:
+            # Item sedang dalam swap / sudah ditukar: status tidak boleh diubah dari Closet
+            self.fields['status'].disabled = True
+            self.fields['status'].help_text = (
+                'Availability is locked while this item is in a swap or already swapped.'
+            )
         self.fields['photo'].help_text = f'JPG, PNG, or WEBP. Max {MAX_PHOTO_MB} MB.'
 
     def clean_photo(self):
@@ -53,5 +59,5 @@ class ClothingForm(forms.ModelForm):
     def save(self, commit=True):
         obj = super().save(commit=commit)
         if commit and self._old_photo and self._old_photo != obj.photo.name:
-            obj.photo.storage.delete(self._old_photo)
+            delete_stored_file(obj.photo.storage, self._old_photo)
         return obj
