@@ -55,19 +55,35 @@
                     </div>
                 </div>
 
+                {% if is_owner and lock_reason %}
+                <p class="closet-lock closet-lock--block">&#128274; {{ lock_reason }}. Its availability can't be changed and it can't be deleted from your closet.</p>
+                {% endif %}
+
                 <div class="closet-detail-actions">
                     {% if is_owner %}
                     <a href="{% url 'closet:item_edit' item.pk %}" class="closet-btn closet-btn--dark">Edit</a>
+                    {% if not lock_reason %}
                     <a href="{% url 'closet:item_delete' item.pk %}" class="closet-btn closet-btn--danger">Delete</a>
+                    {% endif %}
                     {% elif item.is_offered %}
+                        {% if swappable %}
+                            {% if user.is_authenticated %}
+                            <form method="post" action="{% url 'swap:save_interest' item.pk %}" id="interest-form">
+                                {% csrf_token %}
+                                <button type="submit" class="closet-btn closet-btn--dark">Interested</button>
+                            </form>
+                            {% else %}
+                            <a href="{% url 'login' %}" class="closet-btn closet-btn--dark">Sign in to swap or chat</a>
+                            {% endif %}
+                        {% endif %}
                         {% if user.is_authenticated %}
                         <form method="post" action="{% url 'chat:start' owner.pk %}">
                             {% csrf_token %}
                             <input type="hidden" name="item_id" value="{{ item.pk }}">
                             <input type="hidden" name="item_name" value="{{ item.name }}">
-                            <button type="submit" class="closet-btn closet-btn--dark">Chat with {{ owner.username }}</button>
+                            <button type="submit" class="closet-btn closet-btn--ghost">Chat with {{ owner.username }}</button>
                         </form>
-                        {% else %}
+                        {% elif not swappable %}
                         <a href="{% url 'login' %}" class="closet-btn closet-btn--dark">Sign in to chat with the owner</a>
                         {% endif %}
                         <a href="{% url 'closet:user_closet' owner.username %}" class="closet-btn closet-btn--ghost">See more from this closet</a>
@@ -75,9 +91,18 @@
                     <p class="closet-unavailable">This item is no longer available.</p>
                     {% endif %}
                 </div>
+
+                <p class="closet-help" id="interest-result" hidden>
+                    <span id="interest-message"></span>
+                    <a href="{% url 'swap:requests_outgoing' %}">View your requests</a>
+                </p>
             </div>
         </div>
 
     </div>
 </section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/closet.js' %}"></script>
 {% endblock %}
