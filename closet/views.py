@@ -3,7 +3,6 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
-from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_http_methods, require_POST
@@ -113,9 +112,6 @@ def user_closet(request, username):
 def item_detail(request, pk):
     item = get_object_or_404(Clothing.objects.select_related('owner'), pk=pk)
     is_owner = request.user.is_authenticated and item.owner_id == request.user.id
-    # Koleksi pribadi hanya boleh dilihat pemiliknya
-    if item.status == Clothing.Status.PERSONAL and not is_owner:
-        raise Http404
     reserved = reserved_ids()
     return render(request, 'closet/item_detail.html', {
         'item': item,

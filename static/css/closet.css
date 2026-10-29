@@ -259,6 +259,21 @@
     flex: 1;
 }
 
+/* LOCKED ITEMS */
+.closet-lock {
+    font-size: 12px;
+    color: #6b6b63;
+    padding: 7px 10px;
+    background: var(--closet-cream);
+    border-radius: 6px;
+}
+
+.closet-lock--block {
+    font-size: 13px;
+    margin-bottom: 18px;
+    line-height: 1.5;
+}
+
 /* BADGES */
 .closet-badge {
     position: absolute;
@@ -347,6 +362,16 @@
     flex-shrink: 0;
 }
 
+.closet-avatar-link {
+    display: inline-flex;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.closet-view-profile {
+    margin-top: 10px;
+}
+
 .closet-avatar--empty {
     display: inline-flex;
     align-items: center;
@@ -354,6 +379,13 @@
     background: var(--closet-beige);
     font-weight: 700;
     font-size: 20px;
+}
+
+/* Avatar besar di header User Closet (kotak pemilik di detail item tetap kecil) */
+.closet-owner .closet-avatar {
+    width: 96px;
+    height: 96px;
+    font-size: 38px;
 }
 
 .closet-verified {
@@ -570,6 +602,12 @@
 }
 
 @media (max-width: 600px) {
+    .closet-owner .closet-avatar {
+        width: 72px;
+        height: 72px;
+        font-size: 28px;
+    }
+
     .closet-page {
         padding: 30px 20px 55px;
     }

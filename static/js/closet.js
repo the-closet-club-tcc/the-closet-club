@@ -28,6 +28,48 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
+    // Tombol Interested di halaman detail: kirim lewat fetch (view Swap membalas JSON)
+    const interestForm = document.getElementById("interest-form");
+    if (interestForm) {
+        const result = document.getElementById("interest-result");
+        const message = document.getElementById("interest-message");
+        const button = interestForm.querySelector("button");
+
+        interestForm.addEventListener("submit", async event => {
+            event.preventDefault();
+            button.disabled = true;
+
+            try {
+                const response = await fetch(interestForm.action, {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: {
+                        "X-CSRFToken": interestForm.querySelector("[name='csrfmiddlewaretoken']").value,
+                    },
+                });
+                const data = await response.json().catch(() => ({}));
+
+                if (response.ok && data.saved) {
+                    message.textContent = data.created
+                        ? "Swap request sent!"
+                        : "You already have an active request for this piece.";
+                    result.querySelector("a").hidden = false;
+                    result.hidden = false;
+                    button.textContent = "Requested";
+                    return;
+                }
+                message.textContent = data.error || "Something went wrong. Please try again.";
+                result.querySelector("a").hidden = true;
+                result.hidden = false;
+            } catch (error) {
+                message.textContent = "Something went wrong. Please try again.";
+                result.querySelector("a").hidden = true;
+                result.hidden = false;
+            }
+            button.disabled = false;
+        });
+    }
+
     // Live search: debounce + ganti isi hasil tanpa reload halaman
     const filterForm = document.querySelector(".closet-filters");
     const results = document.getElementById("closet-results");
