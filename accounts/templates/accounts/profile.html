@@ -6,6 +6,7 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'css/profile.css' %}">
+<link rel="stylesheet" href="{% static 'css/closet.css' %}">
 {% endblock %}
 
 {% block content %}
@@ -169,11 +170,15 @@
 
             <!-- nanti akan diintegrasikan dengan closet(modul 3) -->
             <div class="profile-closet-content">
-
-                <p class="profile-empty">
-                    Nothing in the closet yet.
-                </p>
-
+                {% if closet_items %}
+                <div class="closet-grid">
+                    {% for item in closet_items %}
+                    {% include 'closet/_card.html' with item=item owner_mode=False %}
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="profile-empty">Nothing in the closet yet.</p>
+                {% endif %}
             </div>
 
         </section>

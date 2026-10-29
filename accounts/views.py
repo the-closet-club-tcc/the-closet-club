@@ -40,7 +40,7 @@ def login_user(request):
         # Catat waktu login
         waktu_login = timezone.localtime().strftime("%Y-%m-%d %H:%M:%S")
 
-        response = redirect("home")
+        response = redirect("profile")
 
         # Simpan waktu login dalam cookie
         response.set_cookie(
@@ -60,7 +60,7 @@ def login_user(request):
 @require_POST
 def logout_view(request):
     logout(request)
-    response = redirect("home")
+    response = redirect("profile")
     # Hapus cookie
     response.delete_cookie("last_login")
     return response
@@ -71,6 +71,7 @@ def profile(request):
     user = request.user
 
     context = {
+        "closet_items": user.clothes.all(),
         "user_profile": user,
         "reviews": user.reviews_received.select_related("pemberi_review").order_by("-tanggal", "-pk"),
         "can_review": False,  # Menunggu otorisasi transaksi Swap, bukan input dari request.
@@ -108,6 +109,7 @@ def public_profile(request, username):
     user_profile = get_object_or_404(User, username=username)
     context={
         "user_profile": user_profile,
+        "closet_items": user_profile.clothes.all(),
         "reviews": user_profile.reviews_received.select_related("pemberi_review").order_by("-tanggal", "-pk"),
         "can_review": False,  # Submission tetap ditutup sebelum integrasi Swap.
     }
