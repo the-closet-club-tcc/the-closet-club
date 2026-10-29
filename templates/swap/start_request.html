@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Send a swap request | The Closet Club{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/swap.css' %}?v=20">
+{% endblock %}
+{% block content %}
+<section class="swap-page swap-start-page">
+    <div class="swap-container">
+        <header class="swap-header"><h1>Send a swap request</h1></header>
+        {% include 'swap/_navigation.html' with active='interested' %}
+        <div class="swap-saved-empty swap-finished">
+            {% if error %}<p class="swap-form-errors" role="alert">{{ error }}</p>{% endif %}
+            {% if available %}
+            <h2>{{ item.name }}</h2>
+            <p>{{ item.owner.username }} will choose a piece from your closet. You can review their counter-offer before accepting.</p>
+            <form method="post" class="swap-proposal-actions">
+                {% csrf_token %}
+                <button class="swap-primary" type="submit">Send request</button>
+            </form>
+            {% else %}
+            <h2>This piece is no longer available</h2>
+            <p>Choose another available piece to start a swap.</p>
+            {% endif %}
+            <div class="swap-finished-actions"><a href="{% url 'swap:interested' %}">Back to interested items</a></div>
+        </div>
+    </div>
+</section>
+{% endblock %}

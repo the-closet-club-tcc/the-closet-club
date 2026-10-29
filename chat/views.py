@@ -3,11 +3,11 @@ import mimetypes
 import os
 
 from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.db.models import Q
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods, require_POST
 from django.contrib.auth import get_user_model
-from django.shortcuts import redirect
 from decimal import Decimal, InvalidOperation
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.core.exceptions import SuspiciousFileOperation
@@ -19,7 +19,11 @@ from django.utils import timezone
 from PIL import Image, ImageOps
 
 from .osm import search_places
-from .models import Attachment, Conversation, Message
+from .models import Attachment, Block, Conversation, Message, Report
+from .forms import ReportForm
+from .services import post_swap_update, swap_event_text, users_blocked
+from swap.models import SwapRequest
+from swap.views import update_request_status as _swap_update_request_status
 
 def _get_conversation(user, conversation_id):
     """Percakapan hanya bisa diakses peserta. Selain itu 404."""
@@ -28,10 +32,38 @@ def _get_conversation(user, conversation_id):
     ).select_related('user1', 'user2')
     return get_object_or_404(qs, pk=conversation_id)
 
+def _blocked_state(user, other):
+    """(saya memblokir dia, dia memblokir saya)."""
+    mine = Block.objects.filter(blocker=user, blocked=other).exists()
+    theirs = Block.objects.filter(blocker=other, blocked=user).exists()
+    return mine, theirs
+
+
+def _send_denied(user, conv):
+    """Respons 403 kalau salah satu pihak memblokir, selain itu None."""
+    mine, theirs = _blocked_state(user, conv.other_user(user))
+    if mine:
+        return HttpResponse('Buka blokir untuk mengirim pesan.', status=403)
+    if theirs:
+        return HttpResponse('Kamu tidak dapat mengirim pesan ke pengguna ini.', status=403)
+    return None
+
+
+def _mark_sent(conv, user):
+    """Naikkan percakapan ke atas daftar. Balasan penerima otomatis menerima permintaan."""
+    fields = ['updated_at']
+    if not conv.accepted and user.pk == conv.user2_id:
+        conv.accepted = True
+        fields.append('accepted')
+    conv.save(update_fields=fields)
 
 def _recent_messages(conversation, user):
     """200 pesan terakhir yang masih terlihat oleh user, urut lama ke baru."""
-    qs = conversation.visible_messages(user).select_related('sender')
+    qs = conversation.visible_messages(user).select_related(
+        'sender', 'reply_to', 'reply_to__sender',
+        'swap_request__sender', 'swap_request__recipient',
+        'swap_request__requested_item', 'swap_request__offered_item',
+    )  
     return list(reversed(qs.order_by('-created_at', '-id')[:MAX_MESSAGES]))
 
 
@@ -46,16 +78,7 @@ def _conversation_items(user, active_id=None):
         last = visible.order_by('-created_at', '-id').first()
         if last is None and conv.cleared_at_for(user):
             continue  # sudah dihapus dan belum ada pesan baru
-        if last is None:
-            preview = 'Belum ada pesan'
-        elif last.message_type == 'location':
-            preview = f'Lokasi: {last.place_name}'
-        elif last.message_type == 'image':
-            preview = 'Foto'
-        elif last.message_type == 'file':
-            preview = f'Dokumen: {last.attachment_name}'
-        else:
-            preview = last.content
+        preview = last.preview_text() if last else 'Belum ada pesan'
         unread = 0 if conv.id == active_id else (
             visible.filter(is_read=False).exclude(sender=user).count()
         )
@@ -69,12 +92,15 @@ def _conversation_items(user, active_id=None):
     return items
 
 
-def _render_messages(request, conversation):
+def _render_messages(request, conversation, swap_notice=None):
+    # Keep cards in sync even when a room is already open and only HTMX polling runs.
     conversation.messages.filter(is_read=False).exclude(
         sender=request.user
     ).update(is_read=True)
     return render(request, 'chat/_messages.html', {
         'chat_messages': _recent_messages(conversation, request.user),
+        'swap_blocked': users_blocked(request.user.pk, conversation.other_user(request.user).pk),
+        'swap_notice': swap_notice,
     })
 
 
@@ -88,6 +114,13 @@ def chat_index(request, conversation_id=None):
         active.messages.filter(is_read=False).exclude(sender=user).update(is_read=True)
         chat_messages = _recent_messages(active, user)
 
+    blocked_by_me = blocked_me = is_request = swap_blocked = False
+    if active:
+        other = active.other_user(user)
+        blocked_by_me, blocked_me = _blocked_state(user, other)
+        swap_blocked = users_blocked(user.pk, other.pk)
+        is_request = (not active.accepted) and user.pk == active.user2_id
+
     return render(request, 'chat/index.html', {
         'conversations': _conversation_items(user, active.id if active else None),
         'active': active,
@@ -96,8 +129,14 @@ def chat_index(request, conversation_id=None):
         'chat_messages': chat_messages,
         'max_image_bytes': MAX_UPLOAD,
         'max_doc_bytes': MAX_UPLOAD,
+        'quick_replies': QUICK_REPLIES,
+        'blocked_by_me': blocked_by_me,
+        'blocked_me': blocked_me,
+        'is_request': is_request,
+        'swap_blocked': swap_blocked,
+        'swap_notice': None,
+        'report_reasons': Report.Reason.choices,
     })
-
 
 @login_required
 def conversation_list(request):
@@ -112,7 +151,12 @@ def conversation_list(request):
 @login_required
 def user_search(request):
     q = request.GET.get('q', '').strip()[:50]
-    qs = get_user_model().objects.exclude(pk=request.user.pk)
+    blocked_ids = set(
+        Block.objects.filter(blocker=request.user).values_list('blocked_id', flat=True)
+    ) | set(
+        Block.objects.filter(blocked=request.user).values_list('blocker_id', flat=True)
+    )
+    qs = get_user_model().objects.exclude(pk=request.user.pk).exclude(pk__in=blocked_ids)
     if q:
         qs = qs.filter(username__icontains=q)
     return render(request, 'chat/_user_results.html', {
@@ -139,18 +183,107 @@ def messages_partial(request, conversation_id):
     return _render_messages(request, conv)
 
 
+
+@login_required
+@require_POST
+def swap_action(request, conversation_id, swap_request_id, action):
+    """Delegate transaction validation to Swap's existing view; only Chat files change."""
+    conv = _get_conversation(request.user, conversation_id)
+    other = conv.other_user(request.user)
+    swap_blocked = users_blocked(request.user.pk, other.pk)
+
+    pair = (
+        Q(sender_id=conv.user1_id, recipient_id=conv.user2_id)
+        | Q(sender_id=conv.user2_id, recipient_id=conv.user1_id)
+    )
+    proposal = get_object_or_404(SwapRequest.objects.filter(pair), pk=swap_request_id)
+
+    # Keep new agreements disabled for a blocked pair, while allowing already-agreed
+    # transactions to be completed or cancellation requests to be resolved.
+    if swap_blocked and action == 'accept' and proposal.status in (
+        SwapRequest.Status.PENDING, SwapRequest.Status.COUNTERED,
+    ):
+        return HttpResponse('Buka blokir terlebih dahulu sebelum menyetujui penawaran baru.', status=403)
+
+    before = {
+        'status': proposal.status,
+        'cancellation_requested_by_id': proposal.cancellation_requested_by_id,
+        'sender_confirmed_at': proposal.sender_confirmed_at,
+        'recipient_confirmed_at': proposal.recipient_confirmed_at,
+    }
+
+    # Swap's existing view remains the single source of truth for participant checks,
+    # item availability/reservation checks, state transitions, and completion.
+    request.skip_chat_notice = True  # kontrak: Chat sudah memposting pesan status
+    response = _swap_update_request_status(request, pk=proposal.pk, action=action)
+    if response.status_code >= 400:
+        return response
+    if request.headers.get('HX-Request', '').lower() == 'true':
+        list(messages.get_messages(request))    
+
+    proposal.refresh_from_db()
+    event = None
+    if proposal.status != before['status']:
+        if proposal.status == SwapRequest.Status.ACCEPTED:
+            event = 'request_accepted'
+        elif proposal.status == SwapRequest.Status.IN_PROGRESS:
+            event = 'exchange_started'
+        elif proposal.status == SwapRequest.Status.COMPLETED:
+            event = 'swap_completed'
+        elif proposal.status == SwapRequest.Status.DECLINED:
+            event = 'request_declined'
+        elif proposal.status == SwapRequest.Status.CANCELLED:
+            event = (
+                'cancellation_approved'
+                if before['status'] in (SwapRequest.Status.ACCEPTED, SwapRequest.Status.IN_PROGRESS)
+                and before['cancellation_requested_by_id'] is not None
+                else 'request_cancelled'
+            )
+    elif before['cancellation_requested_by_id'] != proposal.cancellation_requested_by_id:
+        event = 'cancellation_requested' if proposal.cancellation_requested_by_id else 'cancellation_dismissed'
+    elif (
+        before['sender_confirmed_at'] != proposal.sender_confirmed_at
+        or before['recipient_confirmed_at'] != proposal.recipient_confirmed_at
+    ):
+        event = 'completion_confirmed'
+
+    notice = None
+    if event:
+        notice = swap_event_text(event)
+        # If the pair is blocked, avoid sending a new chat message, but show the result
+        # of the user's own action in the immediate Chat response.
+        if notice and not swap_blocked:
+            post_swap_update(conv, request.user, notice)
+    else:
+        notice = 'Tidak ada perubahan status. Permintaan mungkin sudah diperbarui atau aksi ini tidak lagi tersedia.'
+
+    if request.headers.get('HX-Request', '').lower() == 'true':
+        return _render_messages(request, conv, swap_notice=notice)
+    if notice:
+        messages.info(request, notice)
+    return redirect('chat:room', conversation_id=conv.pk)
+
+
 @login_required
 @require_POST
 def send_message(request, conversation_id):
     conv = _get_conversation(request.user, conversation_id)
+    denied = _send_denied(request.user, conv)
+    if denied:
+        return denied
     content = request.POST.get('content', '').strip()[:2000]
     if content:
+        reply_to = None
+        raw = request.POST.get('reply_to', '')
+        if raw.isdigit():
+            # hanya pesan di percakapan ini yang masih terlihat oleh pengirim
+            reply_to = conv.visible_messages(request.user).filter(pk=int(raw)).first()
         Message.objects.create(
             conversation=conv, sender=request.user, content=content,
+            reply_to=reply_to, has_reply=reply_to is not None,
         )
-        conv.save(update_fields=['updated_at'])
+        _mark_sent(conv, request.user)
     return _render_messages(request, conv)
-
 
 @login_required
 @require_http_methods(['GET', 'POST'])
@@ -173,7 +306,10 @@ def edit_message(request, message_id):
 @login_required
 @require_POST
 def delete_message(request, message_id):
-    msg = get_object_or_404(Message, pk=message_id, sender=request.user)
+    msg = get_object_or_404(
+        Message.objects.exclude(message_type='swap'),
+        pk=message_id, sender=request.user,
+    )
     conv = _get_conversation(request.user, msg.conversation_id)
     msg.delete()
     return _render_messages(request, conv)
@@ -184,11 +320,13 @@ def start_conversation(request, user_id):
     other = get_object_or_404(get_user_model(), pk=user_id)
     if other == request.user:
         return redirect('chat:index')
+    if any(_blocked_state(request.user, other)):
+        return redirect(f"{reverse('chat:index')}?cannot_start=1")
     conv = Conversation.objects.filter(
         Q(user1=request.user, user2=other) | Q(user1=other, user2=request.user)
     ).first()
     if conv is None:
-        conv = Conversation.objects.create(user1=request.user, user2=other)
+        conv = Conversation.objects.create(user1=request.user, user2=other, accepted=False)
     item_id = request.POST.get('item_id', '')
     if item_id.isdigit():
         conv.item_id = int(item_id)
@@ -211,6 +349,9 @@ def place_search(request, conversation_id):
 @require_POST
 def send_location(request, conversation_id):
     conv = _get_conversation(request.user, conversation_id)
+    denied = _send_denied(request.user, conv)
+    if denied:
+        return denied    
     try:
         lat = Decimal(request.POST.get('lat', '')).quantize(Decimal('0.000001'))
         lon = Decimal(request.POST.get('lon', '')).quantize(Decimal('0.000001'))
@@ -227,11 +368,15 @@ def send_location(request, conversation_id):
         place_name=name, address=request.POST.get('address', '').strip()[:255],
         latitude=lat, longitude=lon,
     )
-    conv.save(update_fields=['updated_at'])
+    _mark_sent(conv, request.user)
     return _render_messages(request, conv)
 
 MAX_UPLOAD = 10 * 1024 * 1024
 MAX_MESSAGES = 200
+QUICK_REPLIES = [
+    'Masih tersedia?', 'Boleh nego?', 'Ukurannya muat?',
+    'Bisa ketemu hari ini?', 'Terima kasih!',
+]
 IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
 DOC_EXTS = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt'}
 
@@ -253,6 +398,9 @@ def _normalize_image(data):
 @require_POST
 def send_attachment(request, conversation_id):
     conv = _get_conversation(request.user, conversation_id)
+    denied = _send_denied(request.user, conv)
+    if denied:
+        return denied    
     upload = request.FILES.get('file')
     if upload is None:
         return HttpResponseBadRequest('Pilih file dulu')
@@ -288,7 +436,7 @@ def send_attachment(request, conversation_id):
             attachment_name=name, attachment_type=ctype, attachment_size=len(data),
         )
         Attachment.objects.create(message=msg, data=data)
-    conv.save(update_fields=['updated_at'])
+    _mark_sent(conv, request.user)
     return _render_messages(request, conv)
 
 @login_required
@@ -301,3 +449,57 @@ def attachment(request, message_id):
     response['Content-Disposition'] = content_disposition_header(not inline, msg.attachment_name)
     response['X-Content-Type-Options'] = 'nosniff'
     return response
+
+@login_required
+@require_POST
+def block_user(request, conversation_id):
+    conv = _get_conversation(request.user, conversation_id)
+    Block.objects.get_or_create(blocker=request.user, blocked=conv.other_user(request.user))
+    return redirect(f"{reverse('chat:room', args=[conv.id])}?blocked=1")
+
+@login_required
+@require_POST
+def unblock_user(request, conversation_id):
+    conv = _get_conversation(request.user, conversation_id)
+    Block.objects.filter(blocker=request.user, blocked=conv.other_user(request.user)).delete()
+    return redirect(f"{reverse('chat:room', args=[conv.id])}?unblocked=1")
+
+@login_required
+@require_POST
+def report(request, conversation_id):
+    conv = _get_conversation(request.user, conversation_id)
+    other = conv.other_user(request.user)
+    form = ReportForm(request.POST)
+    if not form.is_valid():
+        text = ' '.join(e for errs in form.errors.values() for e in errs)
+        return HttpResponseBadRequest(text or 'Laporan tidak valid.')
+
+    target = None
+    raw = request.POST.get('message_id', '')
+    if raw:
+        if not raw.isdigit():
+            return HttpResponseBadRequest('Pesan yang dilaporkan tidak ditemukan.')
+        # hanya pesan lawan bicara di percakapan ini
+        target = conv.visible_messages(request.user).filter(pk=int(raw), sender=other).first()
+        if target is None:
+            return HttpResponseBadRequest('Pesan yang dilaporkan tidak ditemukan.')
+
+    obj = form.save(commit=False)
+    obj.reporter = request.user
+    obj.reported_user = other
+    obj.message = target
+    obj.message_excerpt = target.preview_text()[:300] if target else ''
+    obj.save()
+    return HttpResponse(status=204)
+
+
+@login_required
+@require_POST
+def accept_conversation(request, conversation_id):
+    conv = _get_conversation(request.user, conversation_id)
+    room = reverse('chat:room', args=[conv.id])
+    if request.user.pk == conv.user2_id and not conv.accepted:
+        conv.accepted = True
+        conv.save(update_fields=['accepted'])
+        return redirect(f'{room}?accepted=1')
+    return redirect(room)

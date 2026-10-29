@@ -12,8 +12,11 @@ from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from PIL import Image
 
-from .models import Conversation, Message, Attachment
+from .models import Conversation, Message, Attachment, Report, Block
 from . import osm
+from .views import QUICK_REPLIES
+from swap.models import SwapRequest
+from .services import ensure_swap_card
 
 User = get_user_model()
 
@@ -644,4 +647,594 @@ class MessageLimitTests(ChatTestBase):
         shown = resp.context['chat_messages']
         self.assertEqual(len(shown), 200)
         self.assertEqual(shown[0].content, 'pesan 50')
-        self.assertEqual(shown[-1].content, 'pesan 249')        
+        self.assertEqual(shown[-1].content, 'pesan 249')
+
+class ReplyTests(ChatTestBase):
+    def _send(self, **data):
+        return self.client.post(reverse('chat:send', args=[self.conv.id]), data)
+
+    def test_reply_links_to_original_message(self):
+        target = Message.objects.create(
+            conversation=self.conv, sender=self.amelia, content='Kemeja masih ada',
+        )
+        self.login(self.burhania)
+        resp = self._send(content='Boleh, aku ambil', reply_to=str(target.id))
+        self.assertEqual(resp.status_code, 200)
+        msg = self.conv.messages.last()
+        self.assertEqual(msg.reply_to_id, target.id)
+        self.assertTrue(msg.has_reply)
+        self.assertEqual(resp.context['chat_messages'][-1].reply_to_id, target.id)
+
+    def test_reply_to_message_in_other_conversation_is_ignored(self):
+        other = Conversation.objects.create(user1=self.amelia, user2=self.faizy)
+        foreign = Message.objects.create(conversation=other, sender=self.amelia, content='rahasia')
+        self.login(self.burhania)
+        self._send(content='halo', reply_to=str(foreign.id))
+        msg = self.conv.messages.last()
+        self.assertIsNone(msg.reply_to)
+        self.assertFalse(msg.has_reply)
+
+    def test_non_numeric_reply_to_is_ignored(self):
+        self.login(self.burhania)
+        self._send(content='halo', reply_to='abc')
+        msg = self.conv.messages.last()
+        self.assertIsNone(msg.reply_to)
+        self.assertFalse(msg.has_reply)
+
+    def test_deleted_original_shows_unavailable(self):
+        self.login(self.amelia)
+        self._send(content='Setuju', reply_to=str(self.msg_b.id))
+        self.client.logout()
+        self.login(self.burhania)
+        self.client.post(reverse('chat:delete', args=[self.msg_b.id]))
+        reply = self.conv.messages.last()
+        reply.refresh_from_db()
+        self.assertIsNone(reply.reply_to)
+        self.assertTrue(reply.has_reply)
+        resp = self.client.get(reverse('chat:messages', args=[self.conv.id]))
+        self.assertContains(resp, 'Pesan asli tidak tersedia')
+
+
+class QuickReplyTests(ChatTestBase):
+    def test_quick_replies_shown_in_room(self):
+        self.login(self.burhania)
+        resp = self.client.get(reverse('chat:room', args=[self.conv.id]))
+        self.assertEqual(resp.context['quick_replies'], QUICK_REPLIES)
+        for text in QUICK_REPLIES:
+            self.assertContains(resp, text)
+
+    def test_quick_reply_is_sent_as_plain_message(self):
+        self.login(self.burhania)
+        self.client.post(reverse('chat:send', args=[self.conv.id]), {'content': QUICK_REPLIES[0]})
+        msg = self.conv.messages.last()
+        self.assertEqual(msg.content, QUICK_REPLIES[0])
+        self.assertFalse(msg.has_reply)
+
+
+class PreviewTextTests(ChatTestBase):
+    def test_preview_text_per_type(self):
+        loc = Message(message_type='location', place_name='Stasiun Depok')
+        img = Message(message_type='image')
+        doc = Message(message_type='file', attachment_name='surat.pdf')
+        self.assertEqual(loc.preview_text(), 'Lokasi: Stasiun Depok')
+        self.assertEqual(img.preview_text(), 'Foto')
+        self.assertEqual(doc.preview_text(), 'Dokumen: surat.pdf')
+        self.assertEqual(self.msg_b.preview_text(), 'Halo')
+
+class BlockTests(ChatTestBase):
+    def _block(self, user=None):
+        self.login(user or self.burhania)
+        return self.client.post(reverse('chat:block', args=[self.conv.id]))
+
+    def test_block_creates_block_and_redirects(self):
+        resp = self._block()
+        self.assertRedirects(resp, reverse('chat:room', args=[self.conv.id]) + '?blocked=1')
+        self.assertTrue(Block.objects.filter(blocker=self.burhania, blocked=self.amelia).exists())
+
+    def test_block_twice_creates_one_block(self):
+        self._block()
+        self._block()
+        self.assertEqual(Block.objects.count(), 1)
+
+    def test_block_non_participant_404_and_get_405(self):
+        self.assertEqual(self._block(self.faizy).status_code, 404)
+        self.login(self.burhania)
+        self.assertEqual(self.client.get(reverse('chat:block', args=[self.conv.id])).status_code, 405)
+
+    def test_blocked_user_cannot_send_anything(self):
+        Block.objects.create(blocker=self.burhania, blocked=self.amelia)
+        self.login(self.amelia)
+        resp = self.client.post(reverse('chat:send', args=[self.conv.id]), {'content': 'halo'})
+        self.assertEqual(resp.status_code, 403)
+        self.assertIn('tidak dapat mengirim pesan', resp.content.decode())
+        resp = self.client.post(reverse('chat:send_location', args=[self.conv.id]),
+                                {'name': 'X', 'lat': '-6.3', 'lon': '106.8'})
+        self.assertEqual(resp.status_code, 403)
+        resp = self.client.post(reverse('chat:send_attachment', args=[self.conv.id]),
+                                {'file': SimpleUploadedFile('s.pdf', b'%PDF', content_type='application/pdf')})
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(self.conv.messages.count(), 2)
+
+    def test_blocker_cannot_send_until_unblocked(self):
+        Block.objects.create(blocker=self.burhania, blocked=self.amelia)
+        self.login(self.burhania)
+        url = reverse('chat:send', args=[self.conv.id])
+        resp = self.client.post(url, {'content': 'halo'})
+        self.assertEqual(resp.status_code, 403)
+        self.assertIn('Buka blokir untuk mengirim pesan', resp.content.decode())
+        resp = self.client.post(reverse('chat:unblock', args=[self.conv.id]))
+        self.assertRedirects(resp, reverse('chat:room', args=[self.conv.id]) + '?unblocked=1')
+        self.assertEqual(self.client.post(url, {'content': 'halo'}).status_code, 200)
+
+    def test_unblock_non_participant_404_and_get_405(self):
+        self.login(self.faizy)
+        self.assertEqual(self.client.post(reverse('chat:unblock', args=[self.conv.id])).status_code, 404)
+        self.client.logout()
+        self.login(self.burhania)
+        self.assertEqual(self.client.get(reverse('chat:unblock', args=[self.conv.id])).status_code, 405)
+
+    def test_room_shows_blocked_state(self):
+        Block.objects.create(blocker=self.burhania, blocked=self.amelia)
+        self.login(self.burhania)
+        resp = self.client.get(reverse('chat:room', args=[self.conv.id]))
+        self.assertTrue(resp.context['blocked_by_me'])
+        self.assertContains(resp, 'Buka blokir')
+        self.assertNotContains(resp, 'id="message-form"')
+        self.client.logout()
+        self.login(self.amelia)
+        resp = self.client.get(reverse('chat:room', args=[self.conv.id]))
+        self.assertTrue(resp.context['blocked_me'])
+        self.assertContains(resp, 'tidak dapat mengirim pesan')
+
+    def test_cannot_start_when_blocked_either_way(self):
+        Block.objects.create(blocker=self.faizy, blocked=self.burhania)
+        self.login(self.burhania)
+        resp = self.client.post(reverse('chat:start', args=[self.faizy.id]))
+        self.assertRedirects(resp, reverse('chat:index') + '?cannot_start=1')
+        Block.objects.all().delete()
+        Block.objects.create(blocker=self.burhania, blocked=self.faizy)
+        resp = self.client.post(reverse('chat:start', args=[self.faizy.id]))
+        self.assertRedirects(resp, reverse('chat:index') + '?cannot_start=1')
+        self.assertFalse(Conversation.objects.filter(user1=self.burhania, user2=self.faizy).exists())
+
+    def test_blocked_users_hidden_from_search(self):
+        Block.objects.create(blocker=self.burhania, blocked=self.faizy)
+        Block.objects.create(blocker=self.amelia, blocked=self.burhania)
+        self.login(self.burhania)
+        resp = self.client.get(reverse('chat:user_search'))
+        self.assertEqual(list(resp.context['new_users']), [])
+
+
+class ReportTests(ChatTestBase):
+    def _report(self, **data):
+        return self.client.post(reverse('chat:report', args=[self.conv.id]), data)
+
+    def test_report_user(self):
+        self.login(self.burhania)
+        resp = self._report(reason='spam', detail='  iklan terus  ')
+        self.assertEqual(resp.status_code, 204)
+        obj = Report.objects.get()
+        self.assertEqual((obj.reporter, obj.reported_user, obj.reason), (self.burhania, self.amelia, 'spam'))
+        self.assertEqual(obj.detail, 'iklan terus')
+        self.assertIsNone(obj.message)
+
+    def test_report_message_keeps_excerpt_after_deletion(self):
+        self.login(self.burhania)
+        resp = self._report(reason='penipuan', message_id=str(self.msg_a.id))
+        self.assertEqual(resp.status_code, 204)
+        obj = Report.objects.get()
+        self.assertEqual(obj.message, self.msg_a)
+        self.assertEqual(obj.message_excerpt, 'Hai')
+        self.msg_a.delete()
+        obj.refresh_from_db()
+        self.assertIsNone(obj.message)
+        self.assertEqual(obj.message_excerpt, 'Hai')
+
+    def test_reason_required_and_validated(self):
+        self.login(self.burhania)
+        for data in ({}, {'reason': 'xyz'}):
+            resp = self._report(**data)
+            self.assertEqual(resp.status_code, 400)
+            self.assertIn('Pilih alasan laporan', resp.content.decode())
+        self.assertEqual(Report.objects.count(), 0)
+
+    def test_other_reason_needs_detail(self):
+        self.login(self.burhania)
+        resp = self._report(reason='lainnya')
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('Jelaskan laporanmu', resp.content.decode())
+        self.assertEqual(self._report(reason='lainnya', detail='perilaku aneh').status_code, 204)
+
+    def test_detail_too_long(self):
+        self.login(self.burhania)
+        resp = self._report(reason='spam', detail='a' * 501)
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('maksimal 500 karakter', resp.content.decode())
+
+    def test_cannot_report_own_message_or_foreign_message_or_bad_id(self):
+        other = Conversation.objects.create(user1=self.amelia, user2=self.faizy)
+        foreign = Message.objects.create(conversation=other, sender=self.amelia, content='x')
+        self.login(self.burhania)
+        for bad in (str(self.msg_b.id), str(foreign.id), 'abc'):
+            resp = self._report(reason='spam', message_id=bad)
+            self.assertEqual(resp.status_code, 400, bad)
+        self.assertEqual(Report.objects.count(), 0)
+
+    def test_access_rules(self):
+        self.assertEqual(self._report(reason='spam').status_code, 302)
+        self.login(self.faizy)
+        self.assertEqual(self._report(reason='spam').status_code, 404)
+        self.client.logout()
+        self.login(self.burhania)
+        self.assertEqual(self.client.get(reverse('chat:report', args=[self.conv.id])).status_code, 405)
+
+
+class MessageRequestTests(ChatTestBase):
+    def _pending(self):
+        return Conversation.objects.create(user1=self.faizy, user2=self.amelia, accepted=False)
+
+    def test_existing_conversations_are_accepted(self):
+        self.assertTrue(self.conv.accepted)
+
+    def test_new_chat_starts_as_request(self):
+        self.login(self.faizy)
+        self.client.post(reverse('chat:start', args=[self.amelia.id]))
+        self.assertFalse(Conversation.objects.get(user1=self.faizy, user2=self.amelia).accepted)
+
+    def test_banner_only_for_recipient(self):
+        conv = self._pending()
+        self.login(self.amelia)
+        resp = self.client.get(reverse('chat:room', args=[conv.id]))
+        self.assertTrue(resp.context['is_request'])
+        self.assertContains(resp, 'baru menghubungimu')
+        self.client.logout()
+        self.login(self.faizy)
+        resp = self.client.get(reverse('chat:room', args=[conv.id]))
+        self.assertFalse(resp.context['is_request'])
+        self.assertNotContains(resp, 'baru menghubungimu')
+
+    def test_recipient_reply_accepts_but_initiator_message_does_not(self):
+        conv = self._pending()
+        self.login(self.faizy)
+        self.client.post(reverse('chat:send', args=[conv.id]), {'content': 'halo'})
+        conv.refresh_from_db()
+        self.assertFalse(conv.accepted)
+        self.client.logout()
+        self.login(self.amelia)
+        self.client.post(reverse('chat:send', args=[conv.id]), {'content': 'hai'})
+        conv.refresh_from_db()
+        self.assertTrue(conv.accepted)
+
+    def test_accept_view(self):
+        conv = self._pending()
+        self.login(self.amelia)
+        resp = self.client.post(reverse('chat:accept', args=[conv.id]))
+        self.assertRedirects(resp, reverse('chat:room', args=[conv.id]) + '?accepted=1')
+        conv.refresh_from_db()
+        self.assertTrue(conv.accepted)
+
+    def test_initiator_cannot_accept_own_request(self):
+        conv = self._pending()
+        self.login(self.faizy)
+        resp = self.client.post(reverse('chat:accept', args=[conv.id]))
+        self.assertRedirects(resp, reverse('chat:room', args=[conv.id]))
+        conv.refresh_from_db()
+        self.assertFalse(conv.accepted)
+
+    def test_accept_non_participant_404_and_get_405(self):
+        conv = self._pending()
+        self.login(self.burhania)
+        self.assertEqual(self.client.post(reverse('chat:accept', args=[conv.id])).status_code, 404)
+        self.client.logout()
+        self.login(self.amelia)
+        self.assertEqual(self.client.get(reverse('chat:accept', args=[conv.id])).status_code, 405)
+
+class SafetyBannerTests(ChatTestBase):
+    def test_banner_text_shown_in_room(self):
+        self.login(self.burhania)
+        resp = self.client.get(reverse('chat:room', args=[self.conv.id]))
+        self.assertContains(resp, 'Bertemu di tempat umum, jangan transfer sebelum barang diterima')
+
+class SwapCardServiceTests(ChatTestBase):
+    def test_ensure_swap_card_creates_only_one_card(self):
+        proposal = SwapRequest.objects.create(
+            sender=self.burhania,
+            recipient=self.amelia,
+        )
+
+        first = ensure_swap_card(self.conv, proposal)
+        second = ensure_swap_card(self.conv, proposal)
+
+        self.assertEqual(first.pk, second.pk)
+        self.assertEqual(first.conversation_id, self.conv.pk)
+        self.assertEqual(first.sender_id, self.burhania.pk)
+        self.assertEqual(first.message_type, Message.MessageType.SWAP)
+        self.assertEqual(
+            Message.objects.filter(
+                swap_request=proposal,
+                message_type=Message.MessageType.SWAP,
+            ).count(),
+            1,
+        )
+
+
+class SwapActionTests(ChatTestBase):
+    def create_pending_request(self, sender=None, recipient=None):
+        return SwapRequest.objects.create(
+            sender=sender or self.burhania,
+            recipient=recipient or self.amelia,
+            status=SwapRequest.Status.PENDING,
+        )
+
+    def test_non_participant_cannot_use_swap_action(self):
+        proposal = self.create_pending_request()
+        self.login(self.faizy)
+
+        response = self.client.post(
+            reverse(
+                'chat:swap_action',
+                args=[self.conv.pk, proposal.pk, 'decline'],
+            )
+        )
+
+        self.assertEqual(response.status_code, 404)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, SwapRequest.Status.PENDING)
+
+    def test_request_from_another_pair_cannot_be_used_in_this_chat(self):
+        proposal = self.create_pending_request(
+            sender=self.faizy,
+            recipient=self.amelia,
+        )
+        self.login(self.amelia)
+
+        response = self.client.post(
+            reverse(
+                'chat:swap_action',
+                args=[self.conv.pk, proposal.pk, 'decline'],
+            )
+        )
+
+        self.assertEqual(response.status_code, 404)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, SwapRequest.Status.PENDING)
+
+    def test_blocked_pair_cannot_accept_pending_request(self):
+        from .models import Block
+
+        proposal = self.create_pending_request()
+        Block.objects.create(
+            blocker=self.burhania,
+            blocked=self.amelia,
+        )
+        self.login(self.amelia)
+
+        response = self.client.post(
+            reverse(
+                'chat:swap_action',
+                args=[self.conv.pk, proposal.pk, 'accept'],
+            )
+        )
+
+        self.assertEqual(response.status_code, 403)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, SwapRequest.Status.PENDING)
+
+    def test_declining_request_updates_status_and_chat(self):
+        proposal = self.create_pending_request()
+        self.login(self.amelia)
+
+        response = self.client.post(
+            reverse(
+                'chat:swap_action',
+                args=[self.conv.pk, proposal.pk, 'decline'],
+            ),
+            HTTP_HX_REQUEST='true',
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, SwapRequest.Status.DECLINED)
+
+        self.assertTrue(
+            Message.objects.filter(
+                conversation=self.conv,
+                sender=self.amelia,
+                message_type=Message.MessageType.TEXT,
+                content='Swap request declined.',
+            ).exists()
+        )
+        self.assertContains(response, 'Swap request declined.')
+
+class SwapCardGuardTests(ChatTestBase):
+    def make_card(self, status=SwapRequest.Status.PENDING):
+        proposal = SwapRequest.objects.create(
+            sender=self.burhania, recipient=self.amelia, status=status,
+        )
+        card = ensure_swap_card(self.conv, proposal)
+        return proposal, card
+
+    def test_swap_card_cannot_be_deleted(self):
+        _, card = self.make_card()
+        self.login(self.burhania)  # pengirim kartu pun tidak boleh menghapus
+        resp = self.client.post(reverse('chat:delete', args=[card.pk]))
+        self.assertEqual(resp.status_code, 404)
+        self.assertTrue(Message.objects.filter(pk=card.pk).exists())
+
+    def test_swap_card_cannot_be_edited(self):
+        _, card = self.make_card()
+        self.login(self.burhania)
+        resp = self.client.get(reverse('chat:edit', args=[card.pk]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_swap_action_requires_post(self):
+        proposal, _ = self.make_card()
+        self.login(self.amelia)
+        resp = self.client.get(
+            reverse('chat:swap_action', args=[self.conv.pk, proposal.pk, 'decline']),
+        )
+        self.assertEqual(resp.status_code, 405)
+
+    def test_unknown_swap_action_is_rejected(self):
+        proposal, _ = self.make_card()
+        self.login(self.amelia)
+        resp = self.client.post(
+            reverse('chat:swap_action', args=[self.conv.pk, proposal.pk, 'hack']),
+            HTTP_HX_REQUEST='true',
+        )
+        self.assertEqual(resp.status_code, 400)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, SwapRequest.Status.PENDING)
+
+    def test_sender_cannot_decline_own_pending_request(self):
+        proposal, _ = self.make_card()
+        self.login(self.burhania)  # pengirim, bukan penerima
+        resp = self.client.post(
+            reverse('chat:swap_action', args=[self.conv.pk, proposal.pk, 'decline']),
+            HTTP_HX_REQUEST='true',
+        )
+        self.assertEqual(resp.status_code, 404)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, SwapRequest.Status.PENDING)
+
+    def test_swap_flash_message_does_not_leak_to_next_page(self):
+        proposal, _ = self.make_card()
+        self.login(self.amelia)
+        self.client.post(
+            reverse('chat:swap_action', args=[self.conv.pk, proposal.pk, 'decline']),
+            HTTP_HX_REQUEST='true',
+        )
+        resp = self.client.get(reverse('chat:index'))
+        self.assertEqual([str(m) for m in resp.context['messages']], [])        
+
+
+class SwapActionEventTests(ChatTestBase):
+    """Pemetaan event Chat, tanpa bergantung pada logika internal Swap (view Swap di-mock)."""
+
+    @staticmethod
+    def to_status(new_status):
+        def mutate(sr):
+            sr.status = new_status
+            sr.save(update_fields=['status'])
+        return mutate
+
+    def run_action(self, user, status, mutate, action='accept', htmx=True, **fields):
+        from django.http import HttpResponse
+        proposal = SwapRequest.objects.create(
+            sender=self.burhania, recipient=self.amelia, status=status, **fields,
+        )
+
+        def fake_swap_view(request, pk, action):
+            mutate(SwapRequest.objects.get(pk=pk))
+            return HttpResponse(status=302)
+
+        self.login(user)
+        extra = {'HTTP_HX_REQUEST': 'true'} if htmx else {}
+        with mock.patch('chat.views._swap_update_request_status', side_effect=fake_swap_view):
+            resp = self.client.post(
+                reverse('chat:swap_action', args=[self.conv.pk, proposal.pk, action]),
+                **extra,
+            )
+        return proposal, resp
+
+    def assert_notice(self, user, text):
+        self.assertTrue(
+            Message.objects.filter(
+                conversation=self.conv, sender=user,
+                message_type=Message.MessageType.TEXT, content=text,
+            ).exists(),
+            text,
+        )
+
+    def test_accept_posts_agreed_notice(self):
+        self.run_action(self.burhania, SwapRequest.Status.COUNTERED,
+                        self.to_status(SwapRequest.Status.ACCEPTED), 'accept')
+        self.assert_notice(
+            self.burhania, 'Swap agreed. Complete the exchange before leaving a review.')
+
+    def test_start_posts_exchange_started_notice(self):
+        self.run_action(self.amelia, SwapRequest.Status.ACCEPTED,
+                        self.to_status(SwapRequest.Status.IN_PROGRESS), 'start')
+        self.assert_notice(
+            self.amelia,
+            'Exchange started. Both people must confirm once the exchange is finished.')
+
+    def test_complete_posts_completed_notice(self):
+        self.run_action(self.amelia, SwapRequest.Status.IN_PROGRESS,
+                        self.to_status(SwapRequest.Status.COMPLETED), 'complete')
+        self.assert_notice(self.amelia, 'Swap completed.')
+
+    def test_decline_posts_declined_notice(self):
+        self.run_action(self.amelia, SwapRequest.Status.PENDING,
+                        self.to_status(SwapRequest.Status.DECLINED), 'decline')
+        self.assert_notice(self.amelia, 'Swap request declined.')
+
+    def test_cancel_pending_posts_cancelled_notice(self):
+        self.run_action(self.burhania, SwapRequest.Status.PENDING,
+                        self.to_status(SwapRequest.Status.CANCELLED), 'cancel')
+        self.assert_notice(self.burhania, 'Swap request cancelled.')
+
+    def test_cancellation_request_posts_waiting_notice(self):
+        def mutate(sr):
+            sr.cancellation_requested_by = self.amelia
+            sr.save(update_fields=['cancellation_requested_by'])
+        self.run_action(self.amelia, SwapRequest.Status.ACCEPTED, mutate, 'cancel')
+        self.assert_notice(
+            self.amelia, 'Cancellation requested. Waiting for the other person to agree.')
+
+    def test_cancellation_approved_posts_notice(self):
+        self.run_action(
+            self.burhania, SwapRequest.Status.ACCEPTED,
+            self.to_status(SwapRequest.Status.CANCELLED), 'cancel',
+            cancellation_requested_by=self.amelia,
+        )
+        self.assert_notice(self.burhania, 'Swap cancelled by both people.')
+
+    def test_cancellation_dismissed_posts_notice(self):
+        def mutate(sr):
+            sr.cancellation_requested_by = None
+            sr.save(update_fields=['cancellation_requested_by'])
+        self.run_action(self.burhania, SwapRequest.Status.ACCEPTED, mutate, 'keep',
+                        cancellation_requested_by=self.amelia)
+        self.assert_notice(
+            self.burhania, 'Cancellation declined. The swap can continue.')
+
+    def test_single_completion_confirmation_posts_waiting_notice(self):
+        from django.utils import timezone
+
+        def mutate(sr):
+            sr.sender_confirmed_at = timezone.now()
+            sr.save(update_fields=['sender_confirmed_at'])
+        self.run_action(self.burhania, SwapRequest.Status.IN_PROGRESS, mutate, 'complete')
+        self.assert_notice(
+            self.burhania, 'One person confirmed the exchange. Waiting for the other person.')
+
+    def test_no_change_posts_nothing_and_explains(self):
+        before = Message.objects.count()
+        _, resp = self.run_action(
+            self.amelia, SwapRequest.Status.DECLINED, lambda sr: None, 'decline')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(Message.objects.count(), before)  # tidak ada pesan status baru
+        notice = resp.context.get('swap_notice')
+        self.assertTrue(notice and 'Tidak ada perubahan' in notice)
+
+    def test_blocked_pair_gets_no_status_message(self):
+        Block.objects.create(blocker=self.burhania, blocked=self.amelia)
+        proposal, resp = self.run_action(
+            self.amelia, SwapRequest.Status.ACCEPTED,
+            self.to_status(SwapRequest.Status.IN_PROGRESS), 'start')
+        self.assertEqual(resp.status_code, 200)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, SwapRequest.Status.IN_PROGRESS)
+        self.assertFalse(Message.objects.filter(
+            conversation=self.conv, message_type=Message.MessageType.TEXT,
+            content__startswith='Exchange started',
+        ).exists())
+
+    def test_non_htmx_action_redirects_back_to_room(self):
+        _, resp = self.run_action(
+            self.amelia, SwapRequest.Status.PENDING,
+            self.to_status(SwapRequest.Status.DECLINED), 'decline', htmx=False)
+        self.assertRedirects(
+            resp, reverse('chat:room', args=[self.conv.pk]), fetch_redirect_response=False)

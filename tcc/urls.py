@@ -18,18 +18,20 @@ from django.contrib import admin
 from django.conf import settings          
 from django.conf.urls.static import static
 from django.urls import path, include
+from feed import views as feed_views
 from django.views.generic import RedirectView
 from django.conf import settings
 from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('', feed_views.feed_list, name='home'),
+    path('', include('feed.urls')),
     path('', RedirectView.as_view(pattern_name='feed:index', permanent=False), name='home'),
     path('chat/', include('chat.urls')),    
     path('accounts/', include('accounts.urls')),
     path('swap/', include('swap.urls')),
     path('closet/', include('closet.urls')),
-    path('feed/', include('feed.urls')),
 ]
 
 if settings.DEBUG:

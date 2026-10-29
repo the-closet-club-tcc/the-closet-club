@@ -17,6 +17,7 @@ class Conversation(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     cleared_at_user1 = models.DateTimeField(null=True, blank=True)
     cleared_at_user2 = models.DateTimeField(null=True, blank=True)
+    accepted = models.BooleanField(default=True)
 
     def cleared_at_for(self, user):
         return self.cleared_at_user1 if user.pk == self.user1_id else self.cleared_at_user2
@@ -46,7 +47,8 @@ class Message(models.Model):
         TEXT = 'text', 'Teks'
         LOCATION = 'location', 'Lokasi'
         IMAGE = 'image', 'Foto'
-        FILE = 'file', 'Dokumen'        
+        FILE = 'file', 'Dokumen'
+        SWAP = 'swap', 'Permintaan swap'        
 
     conversation = models.ForeignKey(
         Conversation, on_delete=models.CASCADE, related_name='messages',
@@ -69,10 +71,37 @@ class Message(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     attachment_name = models.CharField(max_length=255, blank=True)
     attachment_type = models.CharField(max_length=100, blank=True)
-    attachment_size = models.PositiveIntegerField(default=0)    
+    attachment_size = models.PositiveIntegerField(default=0)
+
+    reply_to = models.ForeignKey(
+        'self', null=True, blank=True, on_delete=models.SET_NULL, related_name='replies',
+    )
+    has_reply = models.BooleanField(default=False)
+    swap_request = models.ForeignKey(
+        'swap.SwapRequest', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='chat_messages',
+    )    
+
+    def preview_text(self):
+        if self.message_type == self.MessageType.LOCATION:
+            return f'Lokasi: {self.place_name}'
+        if self.message_type == self.MessageType.IMAGE:
+            return 'Foto'
+        if self.message_type == self.MessageType.FILE:
+            return f'Dokumen: {self.attachment_name}'
+        if self.message_type == self.MessageType.SWAP:
+            return 'Permintaan swap'        
+        return self.content    
 
     class Meta:
         ordering = ['created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['swap_request'],
+                condition=models.Q(message_type='swap'),
+                name='unique_swap_card_per_request',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.sender}: {self.content[:30]}'
@@ -81,4 +110,51 @@ class Attachment(models.Model):
     message = models.OneToOneField(
         Message, on_delete=models.CASCADE, related_name='attachment',
     )
-    data = models.BinaryField()    
+    data = models.BinaryField()
+
+class Block(models.Model):
+    blocker = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='blocks_made',
+    )
+    blocked = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='blocks_received',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['blocker', 'blocked'], name='unique_block'),
+        ]
+
+    def __str__(self):
+        return f'{self.blocker} memblokir {self.blocked}'
+
+
+class Report(models.Model):
+    class Reason(models.TextChoices):
+        SPAM = 'spam', 'Spam atau promosi'
+        SCAM = 'penipuan', 'Penipuan'
+        HARASSMENT = 'pelecehan', 'Pelecehan atau kata-kata kasar'
+        INAPPROPRIATE = 'tidak_pantas', 'Konten tidak pantas'
+        OTHER = 'lainnya', 'Lainnya'
+
+    reporter = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='reports_made',
+    )
+    reported_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='reports_received',
+    )
+    message = models.ForeignKey(
+        Message, null=True, blank=True, on_delete=models.SET_NULL, related_name='reports',
+    )
+    message_excerpt = models.CharField(max_length=300, blank=True)
+    reason = models.CharField(max_length=20, choices=Reason.choices)
+    detail = models.TextField(blank=True)
+    is_reviewed = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.reporter} melaporkan {self.reported_user} ({self.reason})'

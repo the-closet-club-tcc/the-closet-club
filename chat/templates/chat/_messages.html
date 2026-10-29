@@ -1,4 +1,5 @@
 {% load l10n %}{% now "Y-m-d" as today %}
+{% if swap_notice %}<div class="rounded-lg border border-[#D9C7AF] bg-white px-3 py-2 text-sm text-[#344536]" role="status">{{ swap_notice }}</div>{% endif %}
 {% for m in chat_messages %}
   {% ifchanged m.created_at|date:"Y-m-d" %}
   <div class="flex items-center gap-3 py-1 text-xs text-gray-500">
@@ -21,6 +22,131 @@
                class="mt-2 inline-block rounded-lg border border-[#344536] px-3 py-1 text-sm text-[#344536]">Buka di Peta</a>
           </div>
         </div>
+      {% elif m.message_type == 'swap' %}
+        <div class="overflow-hidden rounded-xl border border-[#E8E0D0] bg-white">
+          <div class="flex items-center gap-2 bg-[#344536] px-3 py-2 text-sm text-white">
+            <i class="bi bi-arrow-left-right"></i>
+            <span class="font-semibold">{{ m.content }}</span>
+          </div>
+          {% with sr=m.swap_request %}
+          {% if sr %}
+          <div class="grid grid-cols-2 gap-3 p-3">
+            <div class="min-w-0">
+              <p class="mb-1 text-[10px] uppercase tracking-widest text-gray-500">Diminta</p>
+              {% with item=sr.requested_item %}
+                {% if item %}
+                  <a href="{{ item.get_absolute_url }}" class="block">
+                    {% if item.photo %}<img src="{{ item.photo.url }}" alt="{{ item.name }}" class="h-28 w-full rounded-lg object-cover">
+                    {% else %}<div class="flex h-28 items-center justify-center rounded-lg bg-[#DCE3D8] text-[#344536]"><i class="bi bi-handbag text-2xl"></i></div>{% endif %}
+                    <p class="mt-1 truncate text-sm font-semibold">{{ item.name }}</p>
+                  </a>
+                {% else %}<p class="text-sm italic text-gray-500">Item tidak tersedia</p>{% endif %}
+              {% endwith %}
+            </div>
+            <div class="min-w-0">
+              <p class="mb-1 text-[10px] uppercase tracking-widest text-gray-500">Ditawarkan</p>
+              {% with item=sr.offered_item %}
+                {% if item %}
+                  <a href="{{ item.get_absolute_url }}" class="block">
+                    {% if item.photo %}<img src="{{ item.photo.url }}" alt="{{ item.name }}" class="h-28 w-full rounded-lg object-cover">
+                    {% else %}<div class="flex h-28 items-center justify-center rounded-lg bg-[#DCE3D8] text-[#344536]"><i class="bi bi-handbag text-2xl"></i></div>{% endif %}
+                    <p class="mt-1 truncate text-sm font-semibold">{{ item.name }}</p>
+                  </a>
+                {% else %}<p class="text-sm italic text-gray-500">Belum ada barang balasan</p>{% endif %}
+              {% endwith %}
+            </div>
+          </div>
+          <div class="border-t border-[#E8E0D0] px-3 py-2 text-xs text-gray-600">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <span>Status: <strong>{{ sr.get_status_display }}</strong></span>
+              <span>Pengaju: {{ sr.sender.username }}</span>
+            </div>
+            <p class="mt-1">{{ sr.top_up_summary }}</p>
+            {% if sr.cancellation_requested_by_id %}
+              <p class="mt-1 font-medium text-amber-700">Pembatalan diminta oleh {{ sr.cancellation_requested_by.username }} dan menunggu respons.</p>
+            {% endif %}
+          </div>
+          {% with me=request.user.id %}
+          <div class="flex flex-wrap gap-2 border-t border-[#E8E0D0] px-3 py-2">
+            {% if swap_blocked %}
+              <p class="w-full text-xs italic text-gray-500">Chat diblokir. Penawaran baru dan persetujuan penawaran dinonaktifkan; transaksi yang sudah disepakati tetap bisa diselesaikan atau dibatalkan.</p>
+            {% endif %}
+            {% if sr.status == 'pending' %}
+              {% if me == sr.recipient_id %}
+                {% if not swap_blocked %}
+                  <a href="{% url 'closet:user_closet' sr.sender.username %}" class="rounded-lg border border-[#344536] px-3 py-1 text-sm text-[#344536]">Lihat Closet</a>
+                  <a href="{% url 'swap:counter_offer' sr.pk %}" class="rounded-lg bg-[#344536] px-3 py-1 text-sm text-white">Propose Item</a>
+                {% endif %}
+                <form method="post" action="{% url 'chat:swap_action' m.conversation_id sr.pk 'decline' %}" hx-post="{% url 'chat:swap_action' m.conversation_id sr.pk 'decline' %}" hx-target="#messages" hx-swap="innerHTML">{% csrf_token %}
+                  <button class="rounded-lg border border-red-300 px-3 py-1 text-sm text-red-600">Decline</button>
+                </form>
+              {% elif me == sr.sender_id %}
+                <span class="self-center text-xs italic text-gray-500">Menunggu penerima memilih barang balasan atau menolak.</span>
+                <form method="post" action="{% url 'chat:swap_action' m.conversation_id sr.pk 'cancel' %}" hx-post="{% url 'chat:swap_action' m.conversation_id sr.pk 'cancel' %}" hx-target="#messages" hx-swap="innerHTML">{% csrf_token %}
+                  <button class="rounded-lg border border-red-300 px-3 py-1 text-sm text-red-600">Cancel request</button>
+                </form>
+              {% endif %}
+            {% elif sr.status == 'countered' %}
+              {% if me == sr.sender_id %}
+                {% if not swap_blocked %}
+                  <form method="post" action="{% url 'chat:swap_action' m.conversation_id sr.pk 'accept' %}" hx-post="{% url 'chat:swap_action' m.conversation_id sr.pk 'accept' %}" hx-target="#messages" hx-swap="innerHTML">{% csrf_token %}
+                    <button class="rounded-lg bg-[#344536] px-3 py-1 text-sm text-white">Agree</button>
+                  </form>
+                {% endif %}
+                <form method="post" action="{% url 'chat:swap_action' m.conversation_id sr.pk 'decline' %}" hx-post="{% url 'chat:swap_action' m.conversation_id sr.pk 'decline' %}" hx-target="#messages" hx-swap="innerHTML">{% csrf_token %}
+                  <button class="rounded-lg border border-red-300 px-3 py-1 text-sm text-red-600">Decline offer</button>
+                </form>
+              {% elif me == sr.recipient_id %}
+                <span class="self-center text-xs italic text-gray-500">
+                  Menunggu pengaju mengonfirmasi atau menolak penawaran balasan.
+                </span>
+              {% endif %}
+            {% elif sr.status == 'accepted' or sr.status == 'in_progress' %}
+              {% if sr.cancellation_requested_by_id %}
+                {% if sr.cancellation_requested_by_id == me %}
+                  <span class="self-center text-xs italic text-gray-500">Permintaan pembatalanmu terkirim. Menunggu respons pihak lain.</span>
+                {% else %}
+                  <span class="self-center text-xs text-amber-700">Pihak lain meminta pembatalan.</span>
+                  <form method="post" action="{% url 'chat:swap_action' m.conversation_id sr.pk 'cancel' %}" hx-post="{% url 'chat:swap_action' m.conversation_id sr.pk 'cancel' %}" hx-target="#messages" hx-swap="innerHTML">{% csrf_token %}
+                    <button class="rounded-lg border border-red-300 px-3 py-1 text-sm text-red-600">Setujui pembatalan</button>
+                  </form>
+                  <form method="post" action="{% url 'chat:swap_action' m.conversation_id sr.pk 'keep' %}" hx-post="{% url 'chat:swap_action' m.conversation_id sr.pk 'keep' %}" hx-target="#messages" hx-swap="innerHTML">{% csrf_token %}
+                    <button class="rounded-lg bg-[#344536] px-3 py-1 text-sm text-white">Lanjutkan swap</button>
+                  </form>
+                {% endif %}
+              {% elif sr.status == 'accepted' %}
+                <form method="post" action="{% url 'chat:swap_action' m.conversation_id sr.pk 'start' %}" hx-post="{% url 'chat:swap_action' m.conversation_id sr.pk 'start' %}" hx-target="#messages" hx-swap="innerHTML">{% csrf_token %}
+                  <button class="rounded-lg bg-[#344536] px-3 py-1 text-sm text-white">Mulai pertukaran</button>
+                </form>
+                <form method="post" action="{% url 'chat:swap_action' m.conversation_id sr.pk 'cancel' %}" hx-post="{% url 'chat:swap_action' m.conversation_id sr.pk 'cancel' %}" hx-target="#messages" hx-swap="innerHTML">{% csrf_token %}
+                  <button class="rounded-lg border border-red-300 px-3 py-1 text-sm text-red-600">Minta pembatalan</button>
+                </form>
+              {% else %}
+                {% if me == sr.sender_id and sr.sender_confirmed_at or me == sr.recipient_id and sr.recipient_confirmed_at %}
+                  <span class="self-center text-xs italic text-gray-500">Konfirmasi penyelesaianmu sudah tercatat; menunggu pihak lain.</span>
+                {% else %}
+                  <form method="post" action="{% url 'chat:swap_action' m.conversation_id sr.pk 'complete' %}" hx-post="{% url 'chat:swap_action' m.conversation_id sr.pk 'complete' %}" hx-target="#messages" hx-swap="innerHTML">{% csrf_token %}
+                    <button class="rounded-lg bg-[#344536] px-3 py-1 text-sm text-white">Konfirmasi sudah ditukar</button>
+                  </form>
+                {% endif %}
+                <form method="post" action="{% url 'chat:swap_action' m.conversation_id sr.pk 'cancel' %}" hx-post="{% url 'chat:swap_action' m.conversation_id sr.pk 'cancel' %}" hx-target="#messages" hx-swap="innerHTML">{% csrf_token %}
+                  <button class="rounded-lg border border-red-300 px-3 py-1 text-sm text-red-600">Minta pembatalan</button>
+                </form>
+              {% endif %}
+            {% elif sr.status == 'completed' %}
+              <span class="self-center text-xs font-medium text-[#344536]">Pertukaran selesai. Kedua barang sudah ditandai ditukar.</span>
+            {% elif sr.status == 'declined' %}
+              <span class="self-center text-xs italic text-gray-500">Permintaan ini telah ditolak.</span>
+            {% elif sr.status == 'cancelled' %}
+              <span class="self-center text-xs italic text-gray-500">Permintaan ini telah dibatalkan.</span>
+            {% endif %}
+          </div>
+          {% endwith %}
+          {% else %}
+          <p class="p-3 text-sm italic text-gray-500">Permintaan swap tidak tersedia</p>
+          {% endif %}
+          {% endwith %}
+        </div>
       {% elif m.message_type == 'image' %}
         <a href="{% url 'chat:attachment' m.id %}" target="_blank" rel="noopener">
           <img src="{% url 'chat:attachment' m.id %}" alt="{{ m.attachment_name }}"
@@ -36,21 +162,42 @@
           </span>
         </a>
       {% else %}
+        {% if m.has_reply %}
+        <div class="mb-1 rounded-xl border-l-4 border-[#344536] bg-white/70 px-3 py-1.5 text-xs">
+          {% if m.reply_to %}
+            <p class="font-semibold text-[#344536]">{% if m.reply_to.sender_id == request.user.id %}Kamu{% else %}{{ m.reply_to.sender.username }}{% endif %}</p>
+            <p class="truncate text-gray-600">{{ m.reply_to.preview_text }}</p>
+          {% else %}
+            <p class="italic text-gray-500">Pesan asli tidak tersedia</p>
+          {% endif %}
+        </div>
+        {% endif %}
         <div class="whitespace-pre-wrap break-words rounded-2xl px-4 py-2 {% if m.sender_id == request.user.id %}rounded-br-md bg-[#344536] text-white{% else %}rounded-bl-md bg-[#D9C7AF]{% endif %}">{{ m.content }}</div>
       {% endif %}
 
       <div class="mt-1 flex items-center gap-2 text-xs text-gray-500 {% if m.sender_id == request.user.id %}justify-end{% endif %}">
-        {% if m.sender_id == request.user.id %}
-          <span class="msg-actions transition md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
+        <span class="msg-actions transition md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
+          <button type="button" class="msg-action"
+                  data-reply-id="{{ m.id }}"
+                  data-reply-who="{% if m.sender_id == request.user.id %}Kamu{% else %}{{ m.sender.username }}{% endif %}"
+                  data-reply-text="{{ m.preview_text|truncatechars:80 }}"><i class="bi bi-reply"></i> Balas</button>
+          {% if m.sender_id != request.user.id %}
+          <button type="button" class="msg-action msg-action--danger"
+                  data-report-message="{{ m.id }}"
+                  data-report-label="{{ m.preview_text|truncatechars:60 }}"><i class="bi bi-flag"></i> Laporkan</button>
+          {% endif %}                  
+          {% if m.sender_id == request.user.id %}
             {% if m.message_type == 'text' %}
             <button type="button" class="msg-action"
                     hx-get="{% url 'chat:edit' m.id %}"
                     hx-target="closest .msg" hx-swap="outerHTML"><i class="bi bi-pencil"></i> Edit</button>
             {% endif %}
+            {% if m.message_type != 'swap' %}
             <button type="button" class="msg-action msg-action--danger"
                     data-confirm-url="{% url 'chat:delete' m.id %}"><i class="bi bi-trash3"></i> Hapus</button>
-          </span>
-        {% endif %}
+            {% endif %}
+          {% endif %}
+        </span>
         <span>{{ m.created_at|time:"H:i" }}{% if m.is_edited %} · diedit{% endif %}</span>
         {% if m.sender_id == request.user.id %}
           {% if m.is_read %}<i class="bi bi-check2-all text-[#344536]" title="Dibaca"></i>{% else %}<i class="bi bi-check2 text-gray-400" title="Terkirim"></i>{% endif %}

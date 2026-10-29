@@ -1,6 +1,6 @@
 <div class="swap-request-item">
     <span class="swap-eyebrow">{{ label }}</span>
-    {% if available %}
+    {% if item and available %}
     <div class="swap-request-piece">
         {% if item.photo %}
         <img src="{{ item.photo.url }}" alt="{{ item.name }}" loading="lazy">
@@ -13,6 +13,8 @@
             <p>{{ item.get_status_display }}</p>
         </div>
     </div>
+    {% elif not item %}
+    <p class="swap-unavailable">Not chosen yet</p>
     {% else %}
     <p class="swap-unavailable">Item no longer available</p>
     {% endif %}

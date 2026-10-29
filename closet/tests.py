@@ -4,11 +4,15 @@ from io import BytesIO
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
+from unittest import mock
+
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from PIL import Image
 
 from .forms import ClothingForm
+from swap.models import SwapRequest
+
 from .models import Clothing
 
 User = get_user_model()
@@ -21,7 +25,14 @@ def make_photo(name='photo.png', size=(20, 20)):
     return SimpleUploadedFile(name, buf.getvalue(), content_type='image/png')
 
 
-@override_settings(MEDIA_ROOT=TEST_MEDIA_ROOT)
+# Pakai storage lokal agar tes tidak mengunggah/menghapus file di Cloudinary
+TEST_STORAGES = {
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+}
+
+
+@override_settings(MEDIA_ROOT=TEST_MEDIA_ROOT, STORAGES=TEST_STORAGES)
 class ClosetTestBase(TestCase):
     @classmethod
     def tearDownClass(cls):
@@ -61,14 +72,25 @@ class ModelTests(ClosetTestBase):
         item = self.make_item()
         storage, name = item.photo.storage, item.photo.name
         self.assertTrue(storage.exists(name))
-        item.delete()
+        with self.captureOnCommitCallbacks(execute=True):
+            item.delete()
         self.assertFalse(storage.exists(name))
+
+    def test_delete_succeeds_even_if_storage_fails(self):
+        item = self.make_item()
+        with mock.patch(
+            'django.core.files.storage.FileSystemStorage.delete',
+            side_effect=Exception('storage down'),
+        ):
+            with self.captureOnCommitCallbacks(execute=True):
+                item.delete()  # tidak boleh melempar error
+        self.assertEqual(Clothing.objects.count(), 0)
 
 
 class MyClosetViewTests(ClosetTestBase):
     def test_requires_login(self):
         for url in [
-            reverse('closet:my_closet'), reverse('closet:item_add'),
+            reverse('closet:index'), reverse('closet:item_add'),
             reverse('closet:item_edit', args=[1]), reverse('closet:item_delete', args=[1]),
         ]:
             resp = self.client.get(url)
@@ -79,19 +101,19 @@ class MyClosetViewTests(ClosetTestBase):
         self.make_item(name='Mine')
         self.make_item(owner=self.bob, name='Theirs')
         self.login(self.alice)
-        resp = self.client.get(reverse('closet:my_closet'))
+        resp = self.client.get(reverse('closet:index'))
         self.assertContains(resp, 'Mine')
         self.assertNotContains(resp, 'Theirs')
 
     def test_empty_state(self):
         self.login(self.alice)
-        self.assertContains(self.client.get(reverse('closet:my_closet')), 'Your closet is empty')
+        self.assertContains(self.client.get(reverse('closet:index')), 'Your closet is empty')
 
     def test_search_and_filters(self):
         self.make_item(name='Linen Shirt', size='L', condition='new', status='barter')
         self.make_item(name='Wool Coat', size='M', condition='fair')
         self.login(self.alice)
-        url = reverse('closet:my_closet')
+        url = reverse('closet:index')
         self.assertContains(self.client.get(url, {'q': 'linen'}), 'Linen Shirt')
         self.assertNotContains(self.client.get(url, {'q': 'linen'}), 'Wool Coat')
         self.assertNotContains(self.client.get(url, {'size': 'L'}), 'Wool Coat')
@@ -104,7 +126,7 @@ class MyClosetViewTests(ClosetTestBase):
         for i in range(13):
             self.make_item(name=f'Item {i:02d}')
         self.login(self.alice)
-        url = reverse('closet:my_closet')
+        url = reverse('closet:index')
         self.assertEqual(len(self.client.get(url).context['page'].object_list), 12)
         self.assertEqual(len(self.client.get(url, {'page': 2}).context['page'].object_list), 1)
 
@@ -121,7 +143,7 @@ class CreateEditDeleteTests(ClosetTestBase):
     def test_create_sets_owner_from_request(self):
         self.login(self.alice)
         resp = self.client.post(reverse('closet:item_add'), self.valid_data())
-        self.assertRedirects(resp, reverse('closet:my_closet'))
+        self.assertRedirects(resp, reverse('closet:index'))
         item = Clothing.objects.get()
         self.assertEqual(item.owner, self.alice)
         self.assertEqual(item.status, 'barter')
@@ -167,7 +189,7 @@ class CreateEditDeleteTests(ClosetTestBase):
         data = self.valid_data(name='Renamed')
         del data['photo']
         resp = self.client.post(reverse('closet:item_edit', args=[item.pk]), data)
-        self.assertRedirects(resp, reverse('closet:my_closet'))
+        self.assertRedirects(resp, reverse('closet:index'))
         item.refresh_from_db()
         self.assertEqual(item.name, 'Renamed')
         self.assertEqual(item.photo.name, old)
@@ -176,10 +198,11 @@ class CreateEditDeleteTests(ClosetTestBase):
         item = self.make_item()
         storage, old = item.photo.storage, item.photo.name
         self.login(self.alice)
-        self.client.post(
-            reverse('closet:item_edit', args=[item.pk]),
-            self.valid_data(photo=make_photo('new.png')),
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(
+                reverse('closet:item_edit', args=[item.pk]),
+                self.valid_data(photo=make_photo('new.png')),
+            )
         item.refresh_from_db()
         self.assertNotEqual(item.photo.name, old)
         self.assertTrue(storage.exists(item.photo.name))
@@ -201,7 +224,7 @@ class CreateEditDeleteTests(ClosetTestBase):
         url = reverse('closet:item_delete', args=[item.pk])
         self.assertContains(self.client.get(url), 'Remove this item?')
         self.assertEqual(Clothing.objects.count(), 1)
-        self.assertRedirects(self.client.post(url), reverse('closet:my_closet'))
+        self.assertRedirects(self.client.post(url), reverse('closet:index'))
         self.assertEqual(Clothing.objects.count(), 0)
 
 
@@ -211,9 +234,9 @@ class StatusTests(ClosetTestBase):
         self.login(self.alice)
         resp = self.client.post(
             reverse('closet:item_status', args=[item.pk]),
-            {'status': 'top_up', 'next': reverse('closet:my_closet') + '?status=personal'},
+            {'status': 'top_up', 'next': reverse('closet:index') + '?status=personal'},
         )
-        self.assertRedirects(resp, reverse('closet:my_closet') + '?status=personal')
+        self.assertRedirects(resp, reverse('closet:index') + '?status=personal')
         item.refresh_from_db()
         self.assertEqual(item.status, 'top_up')
 
@@ -231,7 +254,7 @@ class StatusTests(ClosetTestBase):
             reverse('closet:item_status', args=[item.pk]),
             {'status': 'barter', 'next': 'https://evil.example.com/'},
         )
-        self.assertRedirects(resp, reverse('closet:my_closet'))
+        self.assertRedirects(resp, reverse('closet:index'))
 
     def test_get_not_allowed(self):
         item = self.make_item()
@@ -258,7 +281,7 @@ class PublicViewTests(ClosetTestBase):
     def test_owner_visiting_own_public_closet_goes_to_my_closet(self):
         self.login(self.alice)
         resp = self.client.get(reverse('closet:user_closet', args=['alice']))
-        self.assertRedirects(resp, reverse('closet:my_closet'))
+        self.assertRedirects(resp, reverse('closet:index'))
 
     def test_public_closet_has_no_owner_controls(self):
         self.login(self.bob)
@@ -269,7 +292,7 @@ class PublicViewTests(ClosetTestBase):
     def test_guest_can_view_offered_detail(self):
         resp = self.client.get(self.offered.get_absolute_url())
         self.assertContains(resp, 'Offered Piece')
-        self.assertContains(resp, 'Sign in to chat')
+        self.assertContains(resp, 'Sign in to swap or chat')
 
     def test_personal_detail_hidden_from_others_but_not_owner(self):
         url = self.personal.get_absolute_url()
@@ -305,3 +328,128 @@ class PublicViewTests(ClosetTestBase):
         resp = self.client.get(url, {'size': 'S'})
         self.assertContains(resp, 'Red Dress')
         self.assertNotContains(resp, 'Offered Piece')
+
+class LockTests(ClosetTestBase):
+    """Item yang sedang dalam swap aktif atau sudah ditukar tidak boleh dihapus / diubah statusnya."""
+
+    def setUp(self):
+        super().setUp()
+        self.mine = self.make_item(name='Mine', status='barter')
+        self.theirs = self.make_item(owner=self.bob, name='Theirs', status='barter')
+        self.login(self.alice)
+
+    def swap(self, status, **kw):
+        return SwapRequest.objects.create(
+            sender=self.bob, recipient=self.alice,
+            requested_item=kw.get('requested', self.mine),
+            offered_item=kw.get('offered'), status=status,
+        )
+
+    def assert_locked(self, item):
+        before = item.status
+        resp = self.client.post(reverse('closet:item_delete', args=[item.pk]))
+        self.assertRedirects(resp, reverse('closet:index'))
+        self.assertTrue(Clothing.objects.filter(pk=item.pk).exists())
+        self.assertContains(self.client.get(reverse('closet:item_delete', args=[item.pk]), follow=True), "can&#x27;t be deleted")
+        self.client.post(reverse('closet:item_status', args=[item.pk]), {'status': 'personal'})
+        item.refresh_from_db()
+        self.assertEqual(item.status, before)
+
+    def test_item_in_accepted_swap_is_locked(self):
+        self.swap(SwapRequest.Status.ACCEPTED)
+        self.assert_locked(self.mine)
+
+    def test_item_in_progress_swap_is_locked_on_both_sides(self):
+        self.swap(SwapRequest.Status.IN_PROGRESS, offered=self.theirs)
+        self.assert_locked(self.mine)
+        self.client.logout()
+        self.login(self.bob)
+        self.assert_locked(self.theirs)
+
+    def test_swapped_item_is_locked(self):
+        done = self.make_item(name='Done', status='swapped')
+        self.assert_locked(done)
+
+    def test_pending_or_declined_swap_does_not_lock(self):
+        for status in (SwapRequest.Status.PENDING, SwapRequest.Status.COUNTERED,
+                       SwapRequest.Status.DECLINED, SwapRequest.Status.CANCELLED):
+            req = self.swap(status)
+            resp = self.client.post(reverse('closet:item_status', args=[self.mine.pk]), {'status': 'barter'})
+            self.assertEqual(resp.status_code, 302)
+            self.mine.refresh_from_db()
+            self.assertEqual(self.mine.status, 'barter')
+            req.delete()
+
+    def test_cannot_set_swapped_manually(self):
+        self.client.post(reverse('closet:item_status', args=[self.mine.pk]), {'status': 'swapped'})
+        self.mine.refresh_from_db()
+        self.assertEqual(self.mine.status, 'barter')
+
+    def test_edit_keeps_status_when_locked(self):
+        self.swap(SwapRequest.Status.ACCEPTED)
+        resp = self.client.post(reverse('closet:item_edit', args=[self.mine.pk]), {
+            'name': 'Renamed', 'size': 'L', 'condition': 'good',
+            'status': 'personal', 'description': 'x',
+        })
+        self.assertRedirects(resp, reverse('closet:index'))
+        self.mine.refresh_from_db()
+        self.assertEqual(self.mine.name, 'Renamed')
+        self.assertEqual(self.mine.status, 'barter')
+
+    def test_my_closet_card_shows_lock_and_hides_delete(self):
+        self.swap(SwapRequest.Status.ACCEPTED)
+        resp = self.client.get(reverse('closet:index'))
+        self.assertContains(resp, 'In an active swap')
+        self.assertNotContains(resp, reverse('closet:item_delete', args=[self.mine.pk]))
+        self.assertNotContains(resp, reverse('closet:item_status', args=[self.mine.pk]))
+
+    def test_unlocked_card_still_has_controls(self):
+        resp = self.client.get(reverse('closet:index'))
+        self.assertContains(resp, reverse('closet:item_delete', args=[self.mine.pk]))
+        self.assertNotContains(resp, '<option value="swapped"')
+
+    def test_detail_hides_delete_when_locked(self):
+        self.swap(SwapRequest.Status.ACCEPTED)
+        resp = self.client.get(self.mine.get_absolute_url())
+        self.assertContains(resp, 'In an active swap')
+        self.assertNotContains(resp, reverse('closet:item_delete', args=[self.mine.pk]))
+
+
+class InterestedButtonTests(ClosetTestBase):
+    def setUp(self):
+        super().setUp()
+        self.swappable = self.make_item(name='Swap me', status='barter')
+        self.topup = self.make_item(name='Top up me', status='top_up')
+        self.donate = self.make_item(name='Free', status='donate')
+
+    def url(self, item):
+        return reverse('swap:save_interest', args=[item.pk])
+
+    def test_shown_for_swappable_items_to_other_user(self):
+        self.login(self.bob)
+        for item in (self.swappable, self.topup):
+            self.assertContains(self.client.get(item.get_absolute_url()), self.url(item))
+
+    def test_not_shown_for_donate_item(self):
+        self.login(self.bob)
+        resp = self.client.get(self.donate.get_absolute_url())
+        self.assertNotContains(resp, self.url(self.donate))
+        self.assertContains(resp, 'Chat with alice')
+
+    def test_not_shown_to_owner(self):
+        self.login(self.alice)
+        self.assertNotContains(self.client.get(self.swappable.get_absolute_url()), self.url(self.swappable))
+
+    def test_not_shown_when_reserved(self):
+        SwapRequest.objects.create(
+            sender=self.bob, recipient=self.alice, requested_item=self.swappable,
+            status=SwapRequest.Status.ACCEPTED,
+        )
+        carol = User.objects.create_user('carol', password='pass12345')
+        self.login(carol)
+        self.assertNotContains(self.client.get(self.swappable.get_absolute_url()), self.url(self.swappable))
+
+    def test_guest_gets_sign_in_prompt_not_form(self):
+        resp = self.client.get(self.swappable.get_absolute_url())
+        self.assertContains(resp, 'Sign in to swap or chat')
+        self.assertNotContains(resp, self.url(self.swappable))

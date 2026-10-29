@@ -1,0 +1,19 @@
+<div id="block-modal" class="chat-modal" popover="auto" role="dialog"
+     aria-modal="true" aria-labelledby="block-modal-title">
+  <button type="button" class="chat-modal__backdrop"
+          popovertarget="block-modal" popovertargetaction="hide"
+          aria-label="Tutup konfirmasi"></button>
+  <div class="chat-modal__content">
+    <button type="button" class="chat-modal__close"
+            popovertarget="block-modal" popovertargetaction="hide"
+            aria-label="Tutup konfirmasi">×</button>
+    <h2 id="block-modal-title">Blokir {{ other_user.username }}?</h2>
+    <p>{{ other_user.username }} tidak bisa mengirim pesan kepadamu atau memulai percakapan baru. Kamu juga tidak bisa mengirim pesan kepadanya sampai blokirnya dibuka. Riwayat percakapan tetap ada.</p>
+    <form method="post" action="{% url 'chat:block' active.id %}" class="chat-modal__actions">
+      {% csrf_token %}
+      <button type="button" class="btn btn-secondary"
+              popovertarget="block-modal" popovertargetaction="hide">Batal</button>
+      <button class="btn btn-danger">Ya, blokir</button>
+    </form>
+  </div>
+</div>
