@@ -69,10 +69,12 @@
         <a href="{% url 'chat:index' %}" class="md:hidden" aria-label="Kembali ke daftar pesan">
           <i class="bi bi-arrow-left text-xl"></i>
         </a>
-        {% include 'chat/components/avatar.html' with person=other_user size=48 %}
+        <a href="{% url 'public_profile' other_user.username %}" class="shrink-0" aria-label="Lihat profil {{ other_user.username }}">
+          {% include 'chat/components/avatar.html' with person=other_user size=48 %}
+        </a>        
         <div class="min-w-0 flex-1">
           <p class="flex items-center gap-1.5 font-semibold">
-            <span class="truncate">{{ other_user.username }}</span>
+            <a href="{% url 'public_profile' other_user.username %}" class="truncate hover:underline">{{ other_user.username }}</a>
             {% if other_user.is_verified %}<i class="bi bi-patch-check-fill text-[#344536]" title="Terverifikasi"></i>{% endif %}
           </p>
           <p class="text-xs text-gray-500">
