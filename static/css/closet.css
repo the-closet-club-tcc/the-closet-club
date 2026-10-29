@@ -259,6 +259,21 @@
     flex: 1;
 }
 
+/* LOCKED ITEMS */
+.closet-lock {
+    font-size: 12px;
+    color: #6b6b63;
+    padding: 7px 10px;
+    background: var(--closet-cream);
+    border-radius: 6px;
+}
+
+.closet-lock--block {
+    font-size: 13px;
+    margin-bottom: 18px;
+    line-height: 1.5;
+}
+
 /* BADGES */
 .closet-badge {
     position: absolute;
