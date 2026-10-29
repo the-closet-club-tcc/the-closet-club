@@ -83,17 +83,44 @@ def revoke_deleted_verification(sender, instance, using, **kwargs):
 class Review(models.Model):
     pemberi_review = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reviews_given')
     penerima_review = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reviews_received')  
+    swap_request = models.ForeignKey(
+        'swap.SwapRequest', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='reviews',
+    )
     rating = models.DecimalField(max_digits=2, decimal_places=1, validators=[MinValueValidator(1), MaxValueValidator(5)])
     komentar = models.TextField(blank=True, null=True)
     tanggal = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['swap_request', 'pemberi_review'],
+                name='unique_review_per_swap_and_giver',
+            ),
+        ]
 
     def clean(self):
         super().clean()
         if self.pemberi_review_id and self.pemberi_review_id == self.penerima_review_id:
             raise ValidationError("Kamu tidak bisa memberikan review kepada diri sendiri.")
+        if self.swap_request_id:
+            from swap.models import SwapRequest
+
+            swap_request = self.swap_request
+            participants_match = (
+                swap_request.sender_id == self.pemberi_review_id
+                and swap_request.recipient_id == self.penerima_review_id
+            ) or (
+                swap_request.recipient_id == self.pemberi_review_id
+                and swap_request.sender_id == self.penerima_review_id
+            )
+            if swap_request.status != SwapRequest.Status.COMPLETED:
+                raise ValidationError({"swap_request": "Review hanya bisa diberikan setelah swap selesai."})
+            if not participants_match:
+                raise ValidationError({"swap_request": "Review hanya bisa diberikan oleh peserta swap."})
 
     def save(self, *args, **kwargs):
-        # Validasi data saja; izin transaksi tetap harus diperiksa saat integrasi Swap.
+        # Simpan hanya review yang terikat ke swap selesai milik kedua peserta.
         self.full_clean()
         return super().save(*args, **kwargs)
 
