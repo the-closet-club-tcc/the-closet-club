@@ -86,7 +86,7 @@ def user_closet(request, username):
     """Katalog publik: hanya pakaian yang sedang ditawarkan. Bisa diakses guest."""
     owner = get_object_or_404(get_user_model(), username=username)
     if request.user.is_authenticated and request.user == owner:
-        return redirect('closet:my_closet')
+        return redirect('closet:index')
 
     qs = _apply_filters(owner.clothes.offered(), request.GET)
     page, querystring = _paginate(request, qs)
@@ -124,7 +124,7 @@ def item_create(request):
         item.owner = request.user
         item.save()
         messages.success(request, f'"{item.name}" was added to your closet.')
-        return redirect('closet:my_closet')
+        return redirect('closet:index')
     return render(request, 'closet/item_form.html', {'form': form, 'item': None})
 
 
@@ -136,7 +136,7 @@ def item_edit(request, pk):
     if request.method == 'POST' and form.is_valid():
         form.save()
         messages.success(request, f'"{item.name}" was updated.')
-        return redirect('closet:my_closet')
+        return redirect('closet:index')
     return render(request, 'closet/item_form.html', {'form': form, 'item': item})
 
 
@@ -148,7 +148,7 @@ def item_delete(request, pk):
         name = item.name
         item.delete()
         messages.success(request, f'"{name}" was removed from your closet.')
-        return redirect('closet:my_closet')
+        return redirect('closet:index')
     return render(request, 'closet/item_confirm_delete.html', {'item': item})
 
 
@@ -169,4 +169,4 @@ def item_status(request, pk):
         next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure(),
     ):
         return redirect(next_url)
-    return redirect('closet:my_closet')
+    return redirect('closet:index')
