@@ -1,16 +1,31 @@
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.contrib.auth import login, logout, get_user_model
 from django.contrib.auth.forms import AuthenticationForm
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from django.views.decorators.http import require_POST, require_GET
 from django.contrib.auth.decorators import login_required
-from .forms import CustomUserCreationForm, EditProfileForm
+from .forms import CustomUserCreationForm, EditProfileForm, ReviewForm
 from .models import Verification
+from swap.models import SwapRequest
 
 User = get_user_model()
+
+
+def _reviewable_swap(giver, receiver):
+    if not giver.is_authenticated or giver.pk == receiver.pk:
+        return None
+    return SwapRequest.objects.filter(
+        status=SwapRequest.Status.COMPLETED,
+    ).filter(
+        Q(sender=giver, recipient=receiver) | Q(sender=receiver, recipient=giver),
+    ).exclude(
+        reviews__pemberi_review=giver,
+    ).order_by('-status_changed_at', '-pk').first()
+
 
 def register(request):
     form = CustomUserCreationForm(
@@ -74,7 +89,7 @@ def profile(request):
         "closet_items": user.clothes.all(),
         "user_profile": user,
         "reviews": user.reviews_received.select_related("pemberi_review").order_by("-tanggal", "-pk"),
-        "can_review": False,  # Menunggu otorisasi transaksi Swap, bukan input dari request.
+        "can_review": False,
     }
 
     return render(request, "accounts/profile.html", context)
@@ -107,11 +122,12 @@ def edit_profile(request):
 
 def public_profile(request, username):
     user_profile = get_object_or_404(User, username=username)
+    reviewable_swap = _reviewable_swap(request.user, user_profile)
     context={
         "user_profile": user_profile,
         "closet_items": user_profile.clothes.all(),
         "reviews": user_profile.reviews_received.select_related("pemberi_review").order_by("-tanggal", "-pk"),
-        "can_review": False,  # Submission tetap ditutup sebelum integrasi Swap.
+        "can_review": reviewable_swap is not None,
     }
     return render(request, "accounts/profile.html", context)
 
@@ -157,7 +173,8 @@ def request_verification(request):
     return redirect("profile")
 
 @login_required(login_url="login")
-@require_GET
+@require_POST
+@transaction.atomic
 def add_review(request, username):
     penerima = get_object_or_404(
         User,
@@ -168,5 +185,19 @@ def add_review(request, username):
         messages.error(request, "Kamu tidak bisa memberikan review kepada diri sendiri.")
         return redirect("profile")
 
-    # Review tetap berada di profil; submission menunggu integrasi Swap.
+    swap_request = _reviewable_swap(request.user, penerima)
+    if swap_request is None:
+        messages.error(request, "Kamu hanya bisa memberi satu review untuk setiap swap yang sudah selesai.")
+        return redirect("public_profile", username=penerima.username)
+
+    form = ReviewForm(request.POST)
+    if form.is_valid():
+        review = form.save(commit=False)
+        review.pemberi_review = request.user
+        review.penerima_review = penerima
+        review.swap_request = swap_request
+        review.save()
+        messages.success(request, "Review berhasil dikirim.")
+    else:
+        messages.error(request, "Rating tidak valid. Silakan coba lagi.")
     return redirect("public_profile", username=penerima.username)
