@@ -1,16 +1,18 @@
 from urllib.parse import parse_qs, urlsplit
 from html.parser import HTMLParser
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
 from django.test import Client, TestCase
 from django.urls import reverse
 
 from closet.models import Clothing
-from chat.models import Conversation, Message
+from chat.models import Block, Conversation, Message
+from accounts.models import Review
 
-from .models import Interest, SwapRequest
+from .models import Interest, SwapRequest, SwapReview
 
 
 class SwapTestBase(TestCase):
@@ -248,7 +250,8 @@ class SwapRequestTests(SwapTestBase):
         self.assertEqual(proposal.status, SwapRequest.Status.PENDING)
         self.assertIsNone(proposal.offered_item)
         self.assertTrue(Interest.objects.filter(user=self.viewer, item=self.item).exists())
-        self.assertFalse(Conversation.objects.exists())
+        self.assertEqual(Conversation.objects.count(), 1)
+        self.assertEqual(Message.objects.get().swap_request_id, proposal.pk)
         for user, page in ((self.viewer, self.outgoing_url), (self.owner, self.incoming_url)):
             self.client.force_login(user)
             response = self.client.get(page)
@@ -277,7 +280,8 @@ class SwapRequestTests(SwapTestBase):
             self.assertEqual(response.json()['request_id'], proposal.pk)
             self.assertFalse(response.json()['created'])
             self.assertEqual(SwapRequest.objects.count(), 1)
-        self.assertFalse(Message.objects.exists())
+        self.assertEqual(Message.objects.count(), 1)
+        self.assertEqual(Message.objects.get().swap_request_id, proposal.pk)
 
     def test_counter_form_lists_only_requesters_available_pieces(self):
         proposal = self.send_request()
@@ -431,7 +435,8 @@ class SwapRequestTests(SwapTestBase):
         self.assertFalse(SwapRequest.objects.exists())
         self.assertRedirects(self.client.post(url), self.outgoing_url)
         self.assertIsNone(SwapRequest.objects.get().offered_item)
-        self.assertFalse(Conversation.objects.exists())
+        self.assertEqual(Conversation.objects.count(), 1)
+        self.assertEqual(Message.objects.filter(message_type=Message.MessageType.SWAP).count(), 1)
 
     def test_request_lists_are_private(self):
         proposal = self.send_request()
@@ -487,7 +492,8 @@ class SwapRequestTests(SwapTestBase):
         for piece in (self.item, self.own_item):
             piece.refresh_from_db()
             self.assertEqual(piece.status, Clothing.Status.SWAPPED)
-        self.assertFalse(Message.objects.exists())
+        self.assertEqual(Message.objects.filter(swap_request=proposal).count(), 1)
+        self.assertTrue(Message.objects.filter(content__contains='Swap completed by both people.').exists())
 
     def test_start_requires_post_csrf_available_items_and_no_cancellation(self):
         proposal = self.send_request()
@@ -541,15 +547,16 @@ class SwapRequestTests(SwapTestBase):
             with self.assertRaises(IntegrityError), transaction.atomic():
                 SwapRequest.objects.create(sender=self.viewer, recipient=self.owner, requested_item=self.item)
 
-    def test_chat_can_still_be_opened_without_automatic_messages(self):
-        proposal = self.send_request()
+    def test_request_reuses_existing_chat_and_preserves_messages(self):
         conversation = Conversation.objects.create(user1=self.owner, user2=self.viewer)
         message = Message.objects.create(conversation=conversation, sender=self.owner, content='Hello!')
+        proposal = self.send_request()
         interest = Interest.objects.get(user=self.viewer, item=self.item)
         url = reverse('swap:propose', args=[interest.pk])
         self.assertRedirects(self.client.post(url), reverse('chat:room', args=[conversation.pk]))
         self.assertEqual(Conversation.objects.count(), 1)
-        self.assertEqual(list(conversation.messages.all()), [message])
+        self.assertEqual(list(conversation.messages.filter(message_type=Message.MessageType.TEXT)), [message])
+        self.assertEqual(conversation.messages.filter(swap_request=proposal).count(), 1)
         proposal.refresh_from_db()
         self.assertEqual(proposal.status, SwapRequest.Status.PENDING)
 
@@ -1000,7 +1007,8 @@ class SwapTopUpTests(SwapTestBase):
                         self.assertContains(page_response, 'Accept swap &amp; top-up')
                 proposal.status = SwapRequest.Status.DECLINED
                 proposal.save(update_fields=['status'])
-        self.assertFalse(Message.objects.exists())
+        self.assertEqual(Message.objects.filter(message_type=Message.MessageType.SWAP).count(), 2)
+        self.assertEqual(Message.objects.filter(content__contains='Rp 50.000').count(), 2)
 
     def test_no_top_up_supports_both_new_and_existing_form_submissions(self):
         for fields in ({}, {'top_up_payer': 'none', 'top_up_amount': ''}):
@@ -1015,7 +1023,7 @@ class SwapTopUpTests(SwapTestBase):
                 proposal.status = SwapRequest.Status.CANCELLED
                 proposal.save(update_fields=['status'])
 
-    def test_invalid_terms_do_not_change_request_or_create_chat(self):
+    def test_invalid_terms_do_not_change_request_or_add_chat_messages(self):
         for payer, amount, field in (
             ('sender', '', 'top_up_amount'),
             ('recipient', '0', 'top_up_amount'),
@@ -1036,7 +1044,9 @@ class SwapTopUpTests(SwapTestBase):
                 self.assertEqual(self.proposal.status, SwapRequest.Status.PENDING)
                 self.assertIsNone(self.proposal.offered_item)
                 self.assertIsNone(self.proposal.top_up_amount)
-                self.assertFalse(Conversation.objects.exists())
+                self.assertEqual(Conversation.objects.count(), 1)
+                self.assertEqual(Message.objects.count(), 1)
+                self.assertEqual(Message.objects.get().message_type, Message.MessageType.SWAP)
 
     def test_two_barter_items_cannot_have_top_up_but_offered_top_up_item_can(self):
         self.item.status = Clothing.Status.BARTER
@@ -1174,7 +1184,7 @@ class SwapChatIntegrationTests(SwapTestBase):
         self.client.force_login(self.viewer)
 
     def chat_form(self, page_url, partner):
-        action = reverse('chat:start', args=[partner.pk])
+        action = reverse('swap:open_chat', args=[self.proposal.pk])
 
         class ChatFormParser(HTMLParser):
             def __init__(self):
@@ -1211,8 +1221,8 @@ class SwapChatIntegrationTests(SwapTestBase):
             with self.subTest(user=user.username):
                 self.client.force_login(user)
                 action, fields = self.chat_form(reverse(page), partner)
-                self.assertEqual(fields['item_id'], str(self.item.pk))
-                self.assertEqual(fields['item_name'], self.item.name)
+                self.assertNotIn('item_id', fields)
+                self.assertNotIn('item_name', fields)
                 response = self.client.post(action, fields)
                 conversation = Conversation.objects.get()
                 self.assertRedirects(response, reverse('chat:room', args=[conversation.pk]))
@@ -1220,7 +1230,8 @@ class SwapChatIntegrationTests(SwapTestBase):
                 self.assertTrue(conversation.has_participant(self.owner))
                 self.assertEqual(conversation.item_id, self.item.pk)
                 self.assertEqual(conversation.item_name, self.item.name)
-        self.assertFalse(Message.objects.exists())
+        self.assertEqual(Message.objects.count(), 1)
+        self.assertEqual(Message.objects.get().swap_request_id, self.proposal.pk)
         self.proposal.refresh_from_db()
         self.assertEqual(self.proposal.status, SwapRequest.Status.PENDING)
 
@@ -1231,7 +1242,8 @@ class SwapChatIntegrationTests(SwapTestBase):
         for _ in range(2):
             self.assertRedirects(self.client.post(action, fields), reverse('chat:room', args=[conversation.pk]))
         self.assertEqual(Conversation.objects.count(), 1)
-        self.assertEqual(list(conversation.messages.all()), [message])
+        self.assertEqual(list(conversation.messages.filter(message_type=Message.MessageType.TEXT)), [message])
+        self.assertEqual(conversation.messages.filter(swap_request=self.proposal).count(), 1)
 
     def test_participants_can_exchange_messages_and_outsiders_cannot_read_or_send(self):
         action, fields = self.chat_form(reverse('swap:requests_outgoing'), self.owner)
@@ -1250,7 +1262,8 @@ class SwapChatIntegrationTests(SwapTestBase):
         for url in (messages_url, reverse('chat:room', args=[conversation.pk])):
             self.assertEqual(self.client.get(url).status_code, 404)
         self.assertEqual(self.client.post(send_url, {'content': 'Uninvited'}).status_code, 404)
-        self.assertEqual(conversation.messages.count(), 2)
+        self.assertEqual(self.client.post(action).status_code, 404)
+        self.assertEqual(conversation.messages.count(), 3)
         response = self.client.get(reverse('swap:requests_incoming'))
         self.assertNotContains(response, f'action="{action}"')
 
@@ -1290,3 +1303,278 @@ class SwapChatIntegrationTests(SwapTestBase):
     def test_swap_navigation_does_not_have_a_separate_messages_shortcut(self):
         response = self.client.get(reverse('swap:index'))
         self.assertNotContains(response, '>Messages</a>')
+
+
+class SwapIntegrationTests(SwapTestBase):
+    def setUp(self):
+        self.item = self.items[Clothing.Status.BARTER]
+        self.client.force_login(self.viewer)
+
+    def send_request(self, item=None):
+        response = self.client.post(reverse('swap:save_interest', args=[(item or self.item).pk]))
+        self.assertEqual(response.status_code, 200)
+        return SwapRequest.objects.get(pk=response.json()['request_id'])
+
+    def test_card_renders_for_both_participants_and_chat_counter_link_works(self):
+        proposal = self.send_request()
+        card = Message.objects.get(swap_request=proposal)
+        self.assertEqual(card.sender_id, self.viewer.pk)
+        for user in (self.viewer, self.owner):
+            self.client.force_login(user)
+            response = self.client.get(reverse('chat:room', args=[card.conversation_id]))
+            self.assertContains(response, self.item.name)
+        response = self.client.get(reverse('chat:messages', args=[card.conversation_id]))
+        self.assertContains(response, reverse('swap:choose_counter', args=[proposal.pk]))
+        self.assertEqual(self.client.get(reverse('swap:choose_counter', args=[proposal.pk])).status_code, 200)
+        self.assertEqual(self.client.post(reverse('swap:decline', args=[proposal.pk])).status_code, 302)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, SwapRequest.Status.DECLINED)
+
+    def test_distinct_requests_reuse_pair_chat_but_have_distinct_cards(self):
+        first = self.send_request()
+        second = self.send_request(self.items[Clothing.Status.TOP_UP])
+        self.assertEqual(Conversation.objects.count(), 1)
+        self.assertCountEqual(Message.objects.values_list('swap_request_id', flat=True), [first.pk, second.pk])
+
+    def test_failed_card_creation_rolls_back_interest_and_request(self):
+        with patch('swap.views.ensure_swap_card', side_effect=RuntimeError('Chat unavailable')):
+            with self.assertRaises(RuntimeError):
+                self.client.post(reverse('swap:save_interest', args=[self.item.pk]))
+        self.assertFalse(SwapRequest.objects.exists())
+        self.assertFalse(Interest.objects.exists())
+        self.assertFalse(Conversation.objects.exists())
+
+    def test_block_in_either_direction_prevents_requests(self):
+        for blocker, blocked in ((self.owner, self.viewer), (self.viewer, self.owner)):
+            block = Block.objects.create(blocker=blocker, blocked=blocked)
+            self.assertEqual(self.client.post(reverse('swap:save_interest', args=[self.item.pk])).status_code, 403)
+            self.assertFalse(SwapRequest.objects.exists())
+            self.assertFalse(Message.objects.exists())
+            block.delete()
+
+    def test_new_block_prevents_counter_and_chat_but_allows_cancellation_without_messages(self):
+        proposal = self.send_request()
+        Block.objects.create(blocker=self.owner, blocked=self.viewer)
+        self.client.force_login(self.owner)
+        self.assertEqual(self.client.post(reverse('swap:choose_counter', args=[proposal.pk]), {'offered_item': self.own_item.pk}).status_code, 403)
+        self.client.force_login(self.viewer)
+        self.assertEqual(self.client.post(reverse('swap:open_chat', args=[proposal.pk])).status_code, 403)
+        self.assertEqual(self.client.post(reverse('swap:cancel', args=[proposal.pk])).status_code, 302)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, SwapRequest.Status.CANCELLED)
+        self.assertEqual(Message.objects.count(), 1)
+
+    def test_forged_chat_item_context_is_ignored(self):
+        proposal = self.send_request()
+        self.client.post(reverse('swap:open_chat', args=[proposal.pk]), {
+            'item_id': self.own_item.pk, 'item_name': 'Forged item', 'recipient': self.viewer.pk,
+        })
+        conversation = Conversation.objects.get()
+        self.assertEqual(conversation.item_id, self.item.pk)
+        self.assertEqual(conversation.item_name, self.item.name)
+
+    def test_complete_exchange_updates_shared_clothing_chat_and_profile(self):
+        from feed.models import OutfitPost
+
+        post = OutfitPost.objects.create(author=self.owner, image='outfits/test.jpg', caption='Shared clothing')
+        post.clothes.add(self.item)
+        self.assertContains(self.client.get(reverse('feed:index'), {'offer': 'barter'}), 'Shared clothing')
+        proposal = self.send_request()
+        self.client.force_login(self.owner)
+        counter_url = reverse('swap:choose_counter', args=[proposal.pk])
+        for _ in range(2):
+            self.assertEqual(self.client.post(counter_url, {'offered_item': self.own_item.pk}).status_code, 302)
+        self.assertEqual(Message.objects.count(), 2)
+        self.client.force_login(self.viewer)
+        self.assertEqual(self.client.post(reverse('swap:agree', args=[proposal.pk])).status_code, 302)
+        self.client.post(reverse('swap:update_request_status', args=[proposal.pk, 'start']))
+        self.client.post(reverse('swap:complete', args=[proposal.pk]))
+        message_count = Message.objects.count()
+        self.client.post(reverse('swap:complete', args=[proposal.pk]))
+        self.assertEqual(Message.objects.count(), message_count)
+        self.client.force_login(self.owner)
+        self.client.post(reverse('swap:complete', args=[proposal.pk]))
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, SwapRequest.Status.COMPLETED)
+        self.assertEqual(Message.objects.filter(message_type=Message.MessageType.SWAP).count(), 1)
+        for piece in (self.item, self.own_item):
+            piece.refresh_from_db()
+            self.assertEqual(piece.status, Clothing.Status.SWAPPED)
+        self.assertNotContains(self.client.get(reverse('feed:index'), {'offer': 'barter'}), 'Shared clothing')
+        closet = self.client.get(reverse('closet:index'), {'status': Clothing.Status.SWAPPED})
+        self.assertContains(closet, self.item.name)
+        self.assertContains(self.client.get(reverse('swap:requests_incoming')), 'Leave a review')
+        review_url = reverse('swap:review', args=[proposal.pk])
+        self.assertEqual(self.client.post(review_url, {'rating': '5', 'komentar': 'Great exchange!'}).status_code, 302)
+        self.assertEqual(self.viewer.get_rata_rata_rating(), 5)
+        self.assertContains(self.client.get(reverse('public_profile', args=[self.viewer.username])), 'Great exchange!')
+        self.assertContains(self.client.get(reverse('swap:requests_incoming')), 'Review submitted')
+
+
+class SwapReviewTests(SwapTestBase):
+    def setUp(self):
+        self.proposal = SwapRequest.objects.create(
+            sender=self.viewer, recipient=self.owner, requested_item=self.items[Clothing.Status.BARTER],
+            offered_item=self.own_item, status=SwapRequest.Status.COMPLETED,
+        )
+        self.url = reverse('swap:review', args=[self.proposal.pk])
+        self.client.force_login(self.viewer)
+
+    def test_review_form_renders_and_get_does_not_create_review(self):
+        self.assertContains(self.client.get(self.url), 'Submit review')
+        self.assertFalse(Review.objects.exists())
+
+    def test_only_completed_participants_can_review(self):
+        for status in SwapRequest.Status.values:
+            if status == SwapRequest.Status.COMPLETED:
+                continue
+            SwapRequest.objects.filter(pk=self.proposal.pk).update(status=status)
+            self.assertEqual(self.client.get(self.url).status_code, 403)
+            self.assertEqual(self.client.post(self.url, {'rating': '5'}).status_code, 403)
+        outsider = get_user_model().objects.create_user(username='review_outsider')
+        self.client.force_login(outsider)
+        self.assertEqual(self.client.get(self.url).status_code, 404)
+        self.assertEqual(self.client.post(self.url, {'rating': '5'}).status_code, 404)
+        self.assertFalse(Review.objects.exists())
+
+    def test_both_participants_review_once_with_server_bound_identities(self):
+        for user, partner in ((self.viewer, self.owner), (self.owner, self.viewer)):
+            self.client.force_login(user)
+            data = {'rating': '4', 'komentar': 'Lovely swap', 'pemberi_review': partner.pk, 'penerima_review': user.pk, 'swap_request': '999999'}
+            self.assertEqual(self.client.post(self.url, data).status_code, 302)
+            self.assertEqual(self.client.post(self.url, {**data, 'rating': '1'}).status_code, 302)
+            link = SwapReview.objects.get(swap_request=self.proposal, reviewer=user)
+            self.assertEqual(link.review.pemberi_review, user)
+            self.assertEqual(link.review.penerima_review, partner)
+            self.assertEqual(link.review.rating, Decimal('4'))
+            self.assertEqual(link.review.swap_request_id, self.proposal.pk)
+            self.assertEqual(self.proposal.reviews.get(pemberi_review=user), link.review)
+        self.assertEqual(Review.objects.count(), 2)
+
+    def test_rating_must_be_one_to_five_and_comment_is_optional(self):
+        for rating in ('', '0', '6', '-1', '4.5', 'abc'):
+            response = self.client.post(self.url, {'rating': rating})
+            self.assertEqual(response.status_code, 400)
+            self.assertIn('rating', response.context['form'].errors)
+            self.assertFalse(Review.objects.exists())
+        self.assertEqual(self.client.post(self.url, {'rating': '5'}).status_code, 302)
+        self.assertEqual(Review.objects.get().rating, Decimal('5'))
+
+    def test_later_completed_swap_can_be_reviewed_again(self):
+        self.client.post(self.url, {'rating': '4'})
+        later = SwapRequest.objects.create(sender=self.viewer, recipient=self.owner, status=SwapRequest.Status.COMPLETED)
+        self.assertEqual(self.client.post(reverse('swap:review', args=[later.pk]), {'rating': '2'}).status_code, 302)
+        self.assertEqual(self.owner.get_rata_rata_rating(), 3)
+        self.assertEqual(SwapReview.objects.count(), 2)
+
+    def test_review_requires_login_and_csrf(self):
+        browser = Client(enforce_csrf_checks=True)
+        self.assertEqual(browser.get(self.url).status_code, 302)
+        browser.force_login(self.viewer)
+        self.assertEqual(browser.post(self.url, {'rating': '5'}).status_code, 403)
+        browser.get(self.url)
+        self.assertEqual(browser.post(self.url, {
+            'rating': '5', 'csrfmiddlewaretoken': browser.cookies['csrftoken'].value,
+        }).status_code, 302)
+
+    def test_failed_link_creation_rolls_back_accounts_review(self):
+        with patch('swap.views.SwapReview.objects.create', side_effect=RuntimeError('Write failed')):
+            with self.assertRaises(RuntimeError):
+                self.client.post(self.url, {'rating': '5'})
+        self.assertFalse(Review.objects.exists())
+        self.assertFalse(SwapReview.objects.exists())
+
+    def test_deleting_profile_review_does_not_allow_second_submission(self):
+        self.client.post(self.url, {'rating': '5'})
+        Review.objects.get().delete()
+        self.assertEqual(self.client.post(self.url, {'rating': '1'}).status_code, 302)
+        self.assertFalse(Review.objects.exists())
+        self.assertEqual(SwapReview.objects.count(), 1)
+
+    def test_profile_review_is_recognized_by_swap_and_cannot_be_submitted_twice(self):
+        self.client.post(reverse('add_review', args=[self.owner.username]), {'rating': '4', 'komentar': 'From profile'})
+        review = Review.objects.get()
+        self.assertEqual(review.swap_request_id, self.proposal.pk)
+        self.assertEqual(self.client.get(self.url).status_code, 302)
+        self.assertEqual(self.client.post(self.url, {'rating': '1'}).status_code, 302)
+        self.assertEqual(Review.objects.count(), 1)
+        self.assertContains(self.client.get(reverse('swap:requests_outgoing')), 'Review submitted')
+
+    def test_swap_review_prevents_duplicate_through_profile(self):
+        self.client.post(self.url, {'rating': '5', 'komentar': 'From swap'})
+        self.client.post(reverse('add_review', args=[self.owner.username]), {'rating': '1'})
+        self.assertEqual(Review.objects.count(), 1)
+        self.assertEqual(Review.objects.get().rating, Decimal('5'))
+        self.assertContains(self.client.get(reverse('public_profile', args=[self.owner.username])), 'From swap')
+
+    def test_profile_submission_between_validation_and_save_is_handled(self):
+        from accounts.forms import ReviewForm
+
+        original_validation = ReviewForm.is_valid
+
+        def submit_from_profile(form):
+            valid = original_validation(form)
+            Review.objects.create(
+                pemberi_review=self.viewer, penerima_review=self.owner,
+                swap_request=self.proposal, rating=4,
+            )
+            return valid
+
+        with patch('swap.views.ReviewForm.is_valid', new=submit_from_profile):
+            self.assertEqual(self.client.post(self.url, {'rating': '5'}).status_code, 302)
+        self.assertEqual(Review.objects.count(), 1)
+        self.assertEqual(Review.objects.get().rating, Decimal('4'))
+        self.assertFalse(SwapReview.objects.exists())
+
+
+class SwapReviewMigrationTests(SwapTestBase):
+    def setUp(self):
+        from importlib import import_module
+
+        self.migration = import_module('swap.migrations.0010_align_accounts_reviews')
+        self.proposal = SwapRequest.objects.create(sender=self.viewer, recipient=self.owner, status='completed')
+        self.review = Review.objects.create(pemberi_review=self.viewer, penerima_review=self.owner, rating=5, komentar='Old review')
+        self.link = SwapReview.objects.create(swap_request=self.proposal, reviewer=self.viewer, review=self.review)
+
+    def migrate_reviews(self):
+        from django.apps import apps
+        from types import SimpleNamespace
+
+        with transaction.atomic():
+            self.migration.link_existing_reviews(apps, SimpleNamespace(connection=connection))
+
+    def test_existing_reviews_keep_identity_content_and_rating(self):
+        self.migrate_reviews()
+        self.migrate_reviews()
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.swap_request_id, self.proposal.pk)
+        self.assertEqual(self.review.komentar, 'Old review')
+        self.assertEqual(self.review.rating, Decimal('5'))
+        self.assertEqual(Review.objects.count(), 1)
+        self.assertEqual(self.proposal.reviews.get().pk, self.link.review_id)
+
+    def test_removed_review_is_not_recreated(self):
+        self.review.delete()
+        self.migrate_reviews()
+        self.assertFalse(Review.objects.exists())
+        self.assertEqual(SwapReview.objects.count(), 1)
+
+    def test_conflicting_review_stops_migration_without_overwriting_either_review(self):
+        other = Review.objects.create(
+            pemberi_review=self.viewer, penerima_review=self.owner, swap_request=self.proposal, rating=3,
+        )
+        with self.assertRaisesRegex(RuntimeError, 'needs reconciliation'):
+            self.migrate_reviews()
+        self.review.refresh_from_db()
+        other.refresh_from_db()
+        self.assertIsNone(self.review.swap_request_id)
+        self.assertEqual(other.rating, Decimal('3'))
+        self.assertEqual(Review.objects.count(), 2)
+
+    def test_invalid_participant_does_not_gain_a_transaction_link(self):
+        outsider = get_user_model().objects.create_user(username='legacy_review_outsider')
+        Review.objects.filter(pk=self.review.pk).update(penerima_review=outsider)
+        with self.assertRaisesRegex(RuntimeError, 'needs reconciliation'):
+            self.migrate_reviews()
+        self.review.refresh_from_db()
+        self.assertIsNone(self.review.swap_request_id)
