@@ -3,11 +3,11 @@ import mimetypes
 import os
 
 from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.db.models import Q
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods, require_POST
 from django.contrib.auth import get_user_model
-from django.shortcuts import redirect
 from decimal import Decimal, InvalidOperation
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.core.exceptions import SuspiciousFileOperation
@@ -21,6 +21,9 @@ from PIL import Image, ImageOps
 from .osm import search_places
 from .models import Attachment, Block, Conversation, Message, Report
 from .forms import ReportForm
+from .services import post_swap_update, swap_event_text, users_blocked
+from swap.models import SwapRequest
+from swap.views import update_request_status as _swap_update_request_status
 
 def _get_conversation(user, conversation_id):
     """Percakapan hanya bisa diakses peserta. Selain itu 404."""
@@ -89,12 +92,15 @@ def _conversation_items(user, active_id=None):
     return items
 
 
-def _render_messages(request, conversation):
+def _render_messages(request, conversation, swap_notice=None):
+    # Keep cards in sync even when a room is already open and only HTMX polling runs.
     conversation.messages.filter(is_read=False).exclude(
         sender=request.user
     ).update(is_read=True)
     return render(request, 'chat/_messages.html', {
         'chat_messages': _recent_messages(conversation, request.user),
+        'swap_blocked': users_blocked(request.user.pk, conversation.other_user(request.user).pk),
+        'swap_notice': swap_notice,
     })
 
 
@@ -108,9 +114,11 @@ def chat_index(request, conversation_id=None):
         active.messages.filter(is_read=False).exclude(sender=user).update(is_read=True)
         chat_messages = _recent_messages(active, user)
 
-    blocked_by_me = blocked_me = is_request = False
+    blocked_by_me = blocked_me = is_request = swap_blocked = False
     if active:
-        blocked_by_me, blocked_me = _blocked_state(user, active.other_user(user))
+        other = active.other_user(user)
+        blocked_by_me, blocked_me = _blocked_state(user, other)
+        swap_blocked = users_blocked(user.pk, other.pk)
         is_request = (not active.accepted) and user.pk == active.user2_id
 
     return render(request, 'chat/index.html', {
@@ -125,7 +133,9 @@ def chat_index(request, conversation_id=None):
         'blocked_by_me': blocked_by_me,
         'blocked_me': blocked_me,
         'is_request': is_request,
-        'report_reasons': Report.Reason.choices,        
+        'swap_blocked': swap_blocked,
+        'swap_notice': None,
+        'report_reasons': Report.Reason.choices,
     })
 
 @login_required
@@ -171,6 +181,88 @@ def delete_conversation(request, conversation_id):
 def messages_partial(request, conversation_id):
     conv = _get_conversation(request.user, conversation_id)
     return _render_messages(request, conv)
+
+
+
+@login_required
+@require_POST
+def swap_action(request, conversation_id, swap_request_id, action):
+    """Delegate transaction validation to Swap's existing view; only Chat files change."""
+    conv = _get_conversation(request.user, conversation_id)
+    other = conv.other_user(request.user)
+    swap_blocked = users_blocked(request.user.pk, other.pk)
+
+    pair = (
+        Q(sender_id=conv.user1_id, recipient_id=conv.user2_id)
+        | Q(sender_id=conv.user2_id, recipient_id=conv.user1_id)
+    )
+    proposal = get_object_or_404(SwapRequest.objects.filter(pair), pk=swap_request_id)
+
+    # Keep new agreements disabled for a blocked pair, while allowing already-agreed
+    # transactions to be completed or cancellation requests to be resolved.
+    if swap_blocked and action == 'accept' and proposal.status in (
+        SwapRequest.Status.PENDING, SwapRequest.Status.COUNTERED,
+    ):
+        return HttpResponse('Buka blokir terlebih dahulu sebelum menyetujui penawaran baru.', status=403)
+
+    before = {
+        'status': proposal.status,
+        'cancellation_requested_by_id': proposal.cancellation_requested_by_id,
+        'sender_confirmed_at': proposal.sender_confirmed_at,
+        'recipient_confirmed_at': proposal.recipient_confirmed_at,
+    }
+
+    # Swap's existing view remains the single source of truth for participant checks,
+    # item availability/reservation checks, state transitions, and completion.
+    request.skip_chat_notice = True  # kontrak: Chat sudah memposting pesan status
+    response = _swap_update_request_status(request, pk=proposal.pk, action=action)
+    if response.status_code >= 400:
+        return response
+    if request.headers.get('HX-Request', '').lower() == 'true':
+        list(messages.get_messages(request))    
+
+    proposal.refresh_from_db()
+    event = None
+    if proposal.status != before['status']:
+        if proposal.status == SwapRequest.Status.ACCEPTED:
+            event = 'request_accepted'
+        elif proposal.status == SwapRequest.Status.IN_PROGRESS:
+            event = 'exchange_started'
+        elif proposal.status == SwapRequest.Status.COMPLETED:
+            event = 'swap_completed'
+        elif proposal.status == SwapRequest.Status.DECLINED:
+            event = 'request_declined'
+        elif proposal.status == SwapRequest.Status.CANCELLED:
+            event = (
+                'cancellation_approved'
+                if before['status'] in (SwapRequest.Status.ACCEPTED, SwapRequest.Status.IN_PROGRESS)
+                and before['cancellation_requested_by_id'] is not None
+                else 'request_cancelled'
+            )
+    elif before['cancellation_requested_by_id'] != proposal.cancellation_requested_by_id:
+        event = 'cancellation_requested' if proposal.cancellation_requested_by_id else 'cancellation_dismissed'
+    elif (
+        before['sender_confirmed_at'] != proposal.sender_confirmed_at
+        or before['recipient_confirmed_at'] != proposal.recipient_confirmed_at
+    ):
+        event = 'completion_confirmed'
+
+    notice = None
+    if event:
+        notice = swap_event_text(event)
+        # If the pair is blocked, avoid sending a new chat message, but show the result
+        # of the user's own action in the immediate Chat response.
+        if notice and not swap_blocked:
+            post_swap_update(conv, request.user, notice)
+    else:
+        notice = 'Tidak ada perubahan status. Permintaan mungkin sudah diperbarui atau aksi ini tidak lagi tersedia.'
+
+    if request.headers.get('HX-Request', '').lower() == 'true':
+        return _render_messages(request, conv, swap_notice=notice)
+    if notice:
+        messages.info(request, notice)
+    return redirect('chat:room', conversation_id=conv.pk)
+
 
 @login_required
 @require_POST
