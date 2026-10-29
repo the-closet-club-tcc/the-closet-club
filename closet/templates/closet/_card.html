@@ -9,6 +9,12 @@
         <p class="closet-card-meta">Size {{ item.get_size_display }} &middot; {{ item.get_condition_display }}</p>
 
         {% if owner_mode %}
+        {% if item.lock_reason %}
+        <p class="closet-lock" title="Availability can't be changed while an item is in a swap or already swapped.">&#128274; {{ item.lock_reason }}</p>
+        <div class="closet-card-actions">
+            <a href="{% url 'closet:item_edit' item.pk %}" class="closet-btn closet-btn--ghost closet-btn--small">Edit</a>
+        </div>
+        {% else %}
         <form method="post" action="{% url 'closet:item_status' item.pk %}" class="closet-status-form">
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ next_url }}">
@@ -24,6 +30,7 @@
             <a href="{% url 'closet:item_edit' item.pk %}" class="closet-btn closet-btn--ghost closet-btn--small">Edit</a>
             <a href="{% url 'closet:item_delete' item.pk %}" class="closet-btn closet-btn--danger closet-btn--small">Delete</a>
         </div>
+        {% endif %}
         {% endif %}
     </div>
 </article>

@@ -4,7 +4,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
 from django.test import Client, TestCase
 from django.urls import reverse
 
@@ -1401,7 +1401,7 @@ class SwapIntegrationTests(SwapTestBase):
             piece.refresh_from_db()
             self.assertEqual(piece.status, Clothing.Status.SWAPPED)
         self.assertNotContains(self.client.get(reverse('feed:index'), {'offer': 'barter'}), 'Shared clothing')
-        closet = self.client.get(reverse('closet:my_closet'), {'status': Clothing.Status.SWAPPED})
+        closet = self.client.get(reverse('closet:index'), {'status': Clothing.Status.SWAPPED})
         self.assertContains(closet, self.item.name)
         self.assertContains(self.client.get(reverse('swap:requests_incoming')), 'Leave a review')
         review_url = reverse('swap:review', args=[proposal.pk])
@@ -1440,13 +1440,15 @@ class SwapReviewTests(SwapTestBase):
     def test_both_participants_review_once_with_server_bound_identities(self):
         for user, partner in ((self.viewer, self.owner), (self.owner, self.viewer)):
             self.client.force_login(user)
-            data = {'rating': '4', 'komentar': 'Lovely swap', 'pemberi_review': partner.pk, 'penerima_review': user.pk}
+            data = {'rating': '4', 'komentar': 'Lovely swap', 'pemberi_review': partner.pk, 'penerima_review': user.pk, 'swap_request': '999999'}
             self.assertEqual(self.client.post(self.url, data).status_code, 302)
             self.assertEqual(self.client.post(self.url, {**data, 'rating': '1'}).status_code, 302)
             link = SwapReview.objects.get(swap_request=self.proposal, reviewer=user)
             self.assertEqual(link.review.pemberi_review, user)
             self.assertEqual(link.review.penerima_review, partner)
             self.assertEqual(link.review.rating, Decimal('4'))
+            self.assertEqual(link.review.swap_request_id, self.proposal.pk)
+            self.assertEqual(self.proposal.reviews.get(pemberi_review=user), link.review)
         self.assertEqual(Review.objects.count(), 2)
 
     def test_rating_must_be_one_to_five_and_comment_is_optional(self):
@@ -1488,3 +1490,91 @@ class SwapReviewTests(SwapTestBase):
         self.assertEqual(self.client.post(self.url, {'rating': '1'}).status_code, 302)
         self.assertFalse(Review.objects.exists())
         self.assertEqual(SwapReview.objects.count(), 1)
+
+    def test_profile_review_is_recognized_by_swap_and_cannot_be_submitted_twice(self):
+        self.client.post(reverse('add_review', args=[self.owner.username]), {'rating': '4', 'komentar': 'From profile'})
+        review = Review.objects.get()
+        self.assertEqual(review.swap_request_id, self.proposal.pk)
+        self.assertEqual(self.client.get(self.url).status_code, 302)
+        self.assertEqual(self.client.post(self.url, {'rating': '1'}).status_code, 302)
+        self.assertEqual(Review.objects.count(), 1)
+        self.assertContains(self.client.get(reverse('swap:requests_outgoing')), 'Review submitted')
+
+    def test_swap_review_prevents_duplicate_through_profile(self):
+        self.client.post(self.url, {'rating': '5', 'komentar': 'From swap'})
+        self.client.post(reverse('add_review', args=[self.owner.username]), {'rating': '1'})
+        self.assertEqual(Review.objects.count(), 1)
+        self.assertEqual(Review.objects.get().rating, Decimal('5'))
+        self.assertContains(self.client.get(reverse('public_profile', args=[self.owner.username])), 'From swap')
+
+    def test_profile_submission_between_validation_and_save_is_handled(self):
+        from accounts.forms import ReviewForm
+
+        original_validation = ReviewForm.is_valid
+
+        def submit_from_profile(form):
+            valid = original_validation(form)
+            Review.objects.create(
+                pemberi_review=self.viewer, penerima_review=self.owner,
+                swap_request=self.proposal, rating=4,
+            )
+            return valid
+
+        with patch('swap.views.ReviewForm.is_valid', new=submit_from_profile):
+            self.assertEqual(self.client.post(self.url, {'rating': '5'}).status_code, 302)
+        self.assertEqual(Review.objects.count(), 1)
+        self.assertEqual(Review.objects.get().rating, Decimal('4'))
+        self.assertFalse(SwapReview.objects.exists())
+
+
+class SwapReviewMigrationTests(SwapTestBase):
+    def setUp(self):
+        from importlib import import_module
+
+        self.migration = import_module('swap.migrations.0010_align_accounts_reviews')
+        self.proposal = SwapRequest.objects.create(sender=self.viewer, recipient=self.owner, status='completed')
+        self.review = Review.objects.create(pemberi_review=self.viewer, penerima_review=self.owner, rating=5, komentar='Old review')
+        self.link = SwapReview.objects.create(swap_request=self.proposal, reviewer=self.viewer, review=self.review)
+
+    def migrate_reviews(self):
+        from django.apps import apps
+        from types import SimpleNamespace
+
+        with transaction.atomic():
+            self.migration.link_existing_reviews(apps, SimpleNamespace(connection=connection))
+
+    def test_existing_reviews_keep_identity_content_and_rating(self):
+        self.migrate_reviews()
+        self.migrate_reviews()
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.swap_request_id, self.proposal.pk)
+        self.assertEqual(self.review.komentar, 'Old review')
+        self.assertEqual(self.review.rating, Decimal('5'))
+        self.assertEqual(Review.objects.count(), 1)
+        self.assertEqual(self.proposal.reviews.get().pk, self.link.review_id)
+
+    def test_removed_review_is_not_recreated(self):
+        self.review.delete()
+        self.migrate_reviews()
+        self.assertFalse(Review.objects.exists())
+        self.assertEqual(SwapReview.objects.count(), 1)
+
+    def test_conflicting_review_stops_migration_without_overwriting_either_review(self):
+        other = Review.objects.create(
+            pemberi_review=self.viewer, penerima_review=self.owner, swap_request=self.proposal, rating=3,
+        )
+        with self.assertRaisesRegex(RuntimeError, 'needs reconciliation'):
+            self.migrate_reviews()
+        self.review.refresh_from_db()
+        other.refresh_from_db()
+        self.assertIsNone(self.review.swap_request_id)
+        self.assertEqual(other.rating, Decimal('3'))
+        self.assertEqual(Review.objects.count(), 2)
+
+    def test_invalid_participant_does_not_gain_a_transaction_link(self):
+        outsider = get_user_model().objects.create_user(username='legacy_review_outsider')
+        Review.objects.filter(pk=self.review.pk).update(penerima_review=outsider)
+        with self.assertRaisesRegex(RuntimeError, 'needs reconciliation'):
+            self.migrate_reviews()
+        self.review.refresh_from_db()
+        self.assertIsNone(self.review.swap_request_id)

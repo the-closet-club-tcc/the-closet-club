@@ -1,8 +1,8 @@
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import get_user_model
 from django.contrib import messages
-from django.core.exceptions import PermissionDenied
-from django.db import transaction
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.http import Http404, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -123,8 +123,12 @@ def _sync_swap_chat(proposal, actor=None, text=None):
     conversation = card.conversation
     if text:
         post_swap_update(conversation, actor, f'Swap #{proposal.pk}: {text}')
-        conversation.save(update_fields=['updated_at'])
     return conversation
+
+
+def _notify_swap_change(request, proposal, text):
+    if not getattr(request, 'skip_chat_notice', False):
+        _sync_swap_chat(proposal, request.user, text)
 
 
 @require_POST
@@ -288,14 +292,22 @@ def review_swap(request, pk):
             raise PermissionDenied('Reviews are available only after both people complete the swap.')
         partner = proposal.recipient if proposal.sender_id == request.user.pk else proposal.sender
         destination = 'swap:requests_outgoing' if proposal.sender_id == request.user.pk else 'swap:requests_incoming'
-        if SwapReview.objects.filter(swap_request=proposal, reviewer=request.user).exists():
+        already_reviewed = Review.objects.filter(swap_request=proposal, pemberi_review=request.user)
+        if already_reviewed.exists() or SwapReview.objects.filter(swap_request=proposal, reviewer=request.user).exists():
             messages.info(request, 'You have already reviewed this swap.')
             return redirect(destination)
-        review = Review(pemberi_review=request.user, penerima_review=partner)
+        review = Review(pemberi_review=request.user, penerima_review=partner, swap_request=proposal)
         form = ReviewForm(request.POST if request.method == 'POST' else None, instance=review)
         if request.method == 'POST' and form.is_valid():
-            review = form.save()
-            SwapReview.objects.create(swap_request=proposal, reviewer=request.user, review=review)
+            try:
+                with transaction.atomic():
+                    review = form.save()
+                    SwapReview.objects.create(swap_request=proposal, reviewer=request.user, review=review)
+            except (IntegrityError, ValidationError):
+                if not already_reviewed.exists():
+                    raise
+                messages.info(request, 'You have already reviewed this swap.')
+                return redirect(destination)
             messages.success(request, 'Your review is now visible on their profile. Thank you!')
             return redirect(destination)
     return render(request, 'swap/review.html', {
@@ -313,6 +325,7 @@ def swap_requests(request, direction='incoming'):
     ).select_related('sender', 'recipient', 'offered_item', 'requested_item')
     accepted_items = set(reserved_item_ids())
     reviewed_ids = set(SwapReview.objects.filter(reviewer=request.user).values_list('swap_request_id', flat=True))
+    reviewed_ids.update(Review.objects.filter(pemberi_review=request.user).values_list('swap_request_id', flat=True))
     for swap_request in requests:
         swap_request.you_reviewed = swap_request.pk in reviewed_ids
         swap_request.partner = swap_request.sender if is_incoming else swap_request.recipient
@@ -354,7 +367,7 @@ def update_request_status(request, pk, action):
         return HttpResponseBadRequest('Unknown request action.')
     participants = Q(sender=request.user) | Q(recipient=request.user)
     proposal = get_object_or_404(SwapRequest.objects.filter(participants), pk=pk)
-    if action in ('accept', 'start') and users_blocked(proposal.sender_id, proposal.recipient_id):
+    if action == 'accept' and users_blocked(proposal.sender_id, proposal.recipient_id):
         raise PermissionDenied('Swaps are unavailable between blocked users.')
     destination = 'swap:requests_outgoing' if proposal.sender_id == request.user.pk else 'swap:requests_incoming'
 
@@ -388,7 +401,7 @@ def update_request_status(request, pk, action):
             proposal.cancellation_requested_at = None
             proposal.save(update_fields=['cancellation_requested_by', 'cancellation_requested_at'])
             if had_cancellation:
-                _sync_swap_chat(proposal, request.user, f'{request.user.username} dismissed the cancellation. The exchange can continue.')
+                _notify_swap_change(request, proposal, f'{request.user.username} dismissed the cancellation. The exchange can continue.')
             messages.info(request, 'Cancellation dismissed. The swap can continue.')
             return redirect(destination)
 
@@ -397,7 +410,7 @@ def update_request_status(request, pk, action):
                 proposal.cancellation_requested_by = request.user
                 proposal.cancellation_requested_at = timezone.now()
                 proposal.save(update_fields=['cancellation_requested_by', 'cancellation_requested_at'])
-                _sync_swap_chat(proposal, request.user, f'{request.user.username} requested cancellation. Review it in Swap > Swap requests.')
+                _notify_swap_change(request, proposal, f'{request.user.username} requested cancellation. Review it in Swap > Swap requests.')
                 messages.info(request, 'Cancellation requested. The other person needs to agree before the pieces are released.')
                 return redirect(destination)
             if proposal.cancellation_requested_by_id == request.user.pk:
@@ -429,7 +442,7 @@ def update_request_status(request, pk, action):
             proposal.status = SwapRequest.Status.IN_PROGRESS
             proposal.status_changed_at = timezone.now()
             proposal.save(update_fields=['status', 'status_changed_at'])
-            _sync_swap_chat(proposal, request.user, 'Exchange started. Both people must confirm receipt in Swap > Swap requests when finished.')
+            _notify_swap_change(request, proposal, 'Exchange started. Both people must confirm receipt in Swap > Swap requests when finished.')
             messages.success(request, 'Exchange started. Both people must confirm once the exchange is finished.')
             return redirect(destination)
 
@@ -438,7 +451,7 @@ def update_request_status(request, pk, action):
             if getattr(proposal, field) is None:
                 setattr(proposal, field, timezone.now())
                 proposal.save(update_fields=[field])
-                _sync_swap_chat(proposal, request.user, f'{request.user.username} confirmed receipt of their piece.')
+                _notify_swap_change(request, proposal, f'{request.user.username} confirmed receipt of their piece.')
             if not (proposal.sender_confirmed_at and proposal.recipient_confirmed_at):
                 messages.info(request, 'Your completion is confirmed. Waiting for the other person.')
                 return redirect(destination)
@@ -456,15 +469,15 @@ def update_request_status(request, pk, action):
                 other.save(update_fields=['status', 'status_changed_at'])
                 if request.user.pk in (other.sender_id, other.recipient_id):
                     _sync_swap_chat(other, request.user, 'Request cancelled because a piece was exchanged in another swap.')
-            _sync_swap_chat(proposal, request.user, 'Swap completed by both people. You can now leave a review in Swap > Swap requests.')
+            _notify_swap_change(request, proposal, 'Swap completed by both people. You can now leave a review in Swap > Swap requests.')
             messages.success(request, 'Swap completed by both people. Both pieces are now marked Already swapped.')
             return redirect(destination)
 
         proposal.status = statuses[action]
         proposal.status_changed_at = timezone.now()
         proposal.save(update_fields=['status', 'status_changed_at'])
-        _sync_swap_chat(
-            proposal, request.user,
+        _notify_swap_change(
+            request, proposal,
             f'{request.user.username} {proposal.get_status_display().lower()} the swap. '
             'See the current details in Swap > Swap requests.',
         )

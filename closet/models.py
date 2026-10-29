@@ -1,8 +1,30 @@
+import logging
+
 from django.conf import settings
-from django.db import models
+from django.db import models, transaction
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
 from django.urls import reverse
+
+logger = logging.getLogger(__name__)
+
+
+def delete_stored_file(storage, name):
+    """Hapus file foto dari storage setelah transaksi DB commit.
+
+    Kegagalan storage (mis. Cloudinary tidak terjangkau) hanya dicatat di log
+    dan tidak boleh menggagalkan request pengguna.
+    """
+    if not name:
+        return
+
+    def _delete():
+        try:
+            storage.delete(name)
+        except Exception:
+            logger.warning('Could not delete stored file %s', name, exc_info=True)
+
+    transaction.on_commit(_delete)
 
 
 class ClothingQuerySet(models.QuerySet):
@@ -76,4 +98,4 @@ class Clothing(models.Model):
 def delete_photo_file(sender, instance, **kwargs):
     # Hapus file foto dari storage saat barisnya dihapus
     if instance.photo:
-        instance.photo.delete(save=False)
+        delete_stored_file(instance.photo.storage, instance.photo.name)

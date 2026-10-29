@@ -5,7 +5,7 @@ import django.db.models.deletion
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('swap', '0008_reconcile_swap_workflow'),
+        ('swap', '0008_remove_swaprequest_recipient_confirmed_and_more'),
         ('accounts', '0003_alter_review_rating'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]

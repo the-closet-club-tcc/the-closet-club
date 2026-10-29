@@ -99,7 +99,7 @@ class SwapRequest(models.Model):
 
 
 class SwapReview(models.Model):
-    swap_request = models.ForeignKey(SwapRequest, on_delete=models.CASCADE, related_name='reviews')
+    swap_request = models.ForeignKey(SwapRequest, on_delete=models.CASCADE, related_name='review_links')
     reviewer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='swap_reviews')
     review = models.OneToOneField(
         'accounts.Review', on_delete=models.SET_NULL, null=True, related_name='swap_review',
