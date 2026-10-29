@@ -1,6 +1,6 @@
 from django.db.models import Q
 
-from .models import Block, Message
+from .models import Block, Conversation, Message
 
 
 def ensure_swap_card(conversation, swap_request):
@@ -57,3 +57,43 @@ _SWAP_EVENT_TEXTS = {
 def swap_event_text(event):
     """Human-readable Chat update for a meaningful Swap state change."""
     return _SWAP_EVENT_TEXTS.get(event)
+
+def sync_swap_cards(conversation):
+    """Buat kartu untuk SwapRequest aktif antara dua user yang belum punya kartu."""
+    from swap.models import SwapRequest
+
+    pair = (
+        Q(sender_id=conversation.user1_id, recipient_id=conversation.user2_id)
+        | Q(sender_id=conversation.user2_id, recipient_id=conversation.user1_id)
+    )
+    missing = (
+        SwapRequest.objects.filter(pair, status__in=[
+            SwapRequest.Status.PENDING, SwapRequest.Status.COUNTERED,
+            SwapRequest.Status.ACCEPTED, SwapRequest.Status.IN_PROGRESS,
+        ])
+        .exclude(chat_messages__message_type=Message.MessageType.SWAP)
+        .select_related('sender')
+    )
+    for swap_request in missing:
+        ensure_swap_card(conversation, swap_request)
+
+def sync_swap_conversations(user):
+    """Pastikan tiap SwapRequest aktif milik user punya percakapan dan kartu."""
+    from swap.models import SwapRequest
+    S = SwapRequest.Status
+    pending = (
+        SwapRequest.objects
+        .filter(Q(sender=user) | Q(recipient=user),
+                status__in=[S.PENDING, S.COUNTERED, S.ACCEPTED, S.IN_PROGRESS])
+        .exclude(chat_messages__message_type=Message.MessageType.SWAP)
+        .select_related('sender')
+    )
+    for sr in pending:
+        if users_blocked(sr.sender_id, sr.recipient_id):
+            continue
+        conv = Conversation.objects.filter(
+            Q(user1_id=sr.sender_id, user2_id=sr.recipient_id)
+            | Q(user1_id=sr.recipient_id, user2_id=sr.sender_id)
+        ).first() or Conversation.objects.create(
+            user1_id=sr.sender_id, user2_id=sr.recipient_id)
+        ensure_swap_card(conv, sr)

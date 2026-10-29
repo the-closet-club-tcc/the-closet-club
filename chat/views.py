@@ -21,7 +21,7 @@ from PIL import Image, ImageOps
 from .osm import search_places
 from .models import Attachment, Block, Conversation, Message, Report
 from .forms import ReportForm
-from .services import post_swap_update, swap_event_text, users_blocked
+from .services import post_swap_update, swap_event_text, sync_swap_cards, users_blocked, sync_swap_conversations
 from swap.models import SwapRequest
 from swap.views import update_request_status as _swap_update_request_status
 
@@ -94,6 +94,7 @@ def _conversation_items(user, active_id=None):
 
 def _render_messages(request, conversation, swap_notice=None):
     # Keep cards in sync even when a room is already open and only HTMX polling runs.
+    sync_swap_cards(conversation)
     conversation.messages.filter(is_read=False).exclude(
         sender=request.user
     ).update(is_read=True)
@@ -105,12 +106,14 @@ def _render_messages(request, conversation, swap_notice=None):
 
 
 @login_required
-def chat_index(request, conversation_id=None):
+def chat_index(request, conversation_id=None):    
     user = request.user
+    sync_swap_conversations(user)
     active = None
     chat_messages = []
     if conversation_id is not None:
         active = _get_conversation(user, conversation_id)  # non-peserta -> 404
+        sync_swap_cards(active)
         active.messages.filter(is_read=False).exclude(sender=user).update(is_read=True)
         chat_messages = _recent_messages(active, user)
 
@@ -140,6 +143,7 @@ def chat_index(request, conversation_id=None):
 
 @login_required
 def conversation_list(request):
+    sync_swap_conversations(request.user)
     raw = request.GET.get('active', '')
     active_id = int(raw) if raw.isdigit() else None
     return render(request, 'chat/_conversation_list.html', {
@@ -218,8 +222,8 @@ def swap_action(request, conversation_id, swap_request_id, action):
     response = _swap_update_request_status(request, pk=proposal.pk, action=action)
     if response.status_code >= 400:
         return response
-    if request.headers.get('HX-Request', '').lower() == 'true':
-        list(messages.get_messages(request))    
+    list(messages.get_messages(request))   
+         
 
     proposal.refresh_from_db()
     event = None
