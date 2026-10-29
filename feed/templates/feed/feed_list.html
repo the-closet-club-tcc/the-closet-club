@@ -8,7 +8,73 @@
 {% endblock %}
 
 {% block content %}
-<div class="feed-page">
+{% if show_hero %}
+<section class="feed-hero" aria-labelledby="hero-title">
+    <span class="spark spark-1" aria-hidden="true"></span>
+    <span class="spark spark-2" aria-hidden="true"></span>
+    <span class="spark spark-3" aria-hidden="true"></span>
+
+    <div class="hero-inner">
+        <p class="hero-eyebrow">A cleaner world &middot; A brighter wardrobe</p>
+        <h1 id="hero-title">Wear Again. Share More.<br>Waste Less.</h1>
+
+        <div class="hero-grid">
+            <!-- Left: intro + call to action -->
+            <div class="hero-copy">
+                <p>Browse outfits from the community. Every piece tagged here lives in someone's closet, ready to swap, top up or pass on.</p>
+                <div class="hero-cta">
+                    {% if user.is_authenticated %}
+                    <a href="{% url 'feed:create' %}" class="btn btn-dark"><i class="bi bi-plus-lg"></i> Post an outfit</a>
+                    <a href="{% url 'closet:my_closet' %}" class="btn btn-ghost">My closet</a>
+                    {% else %}
+                    <a href="{% url 'register' %}" class="btn btn-dark">Join the club</a>
+                    <a href="{% url 'login' %}" class="btn btn-ghost">Sign in</a>
+                    {% endif %}
+                </div>
+
+                <a href="#outfits" class="hero-badge" aria-label="Scroll down to the latest outfits">
+                    <svg viewBox="0 0 120 120" aria-hidden="true">
+                        <defs><path id="badge-circle" d="M60,60 m-46,0 a46,46 0 1,1 92,0 a46,46 0 1,1 -92,0"/></defs>
+                        <text><textPath href="#badge-circle" textLength="286" lengthAdjust="spacing">SEE THE LATEST OUTFITS &bull; THE CLOSET CLUB &bull; </textPath></text>
+                    </svg>
+                    <i class="bi bi-arrow-down"></i>
+                </a>
+            </div>
+
+            <!-- Centre: blob mosaic of the newest outfit photos -->
+            <div class="hero-mosaic" role="list" aria-label="Newest outfits">
+                {% for slot, post in hero_tiles %}
+                    {% if post %}
+                    <a role="listitem" class="tile tile-{{ slot }}" href="{{ post.get_absolute_url }}" title="Outfit by @{{ post.author.username }}">
+                        <img src="{{ post.image.url }}" alt="Outfit by {{ post.author.username }}">
+                    </a>
+                    {% else %}
+                    <span class="tile tile-{{ slot }} is-fill" aria-hidden="true"></span>
+                    {% endif %}
+                {% endfor %}
+            </div>
+
+            <!-- Right: community numbers -->
+            <dl class="hero-stats">
+                <div>
+                    <dd>{{ hero_stats.outfits }}</dd>
+                    <dt>Outfits shared</dt>
+                </div>
+                <div>
+                    <dd>{{ hero_stats.offered }}</dd>
+                    <dt>Pieces on offer</dt>
+                </div>
+                <div>
+                    <dd>{{ hero_stats.members }}</dd>
+                    <dt>Members</dt>
+                </div>
+            </dl>
+        </div>
+    </div>
+</section>
+{% endif %}
+
+<div class="feed-page" id="outfits">
     <form method="get" class="feed-layout" id="feed-form">
 
         <!-- FILTER SIDEBAR -->
