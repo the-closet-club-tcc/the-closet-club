@@ -214,6 +214,7 @@ def swap_action(request, conversation_id, swap_request_id, action):
 
     # Swap's existing view remains the single source of truth for participant checks,
     # item availability/reservation checks, state transitions, and completion.
+    request.skip_chat_notice = True  # kontrak: Chat sudah memposting pesan status
     response = _swap_update_request_status(request, pk=proposal.pk, action=action)
     if response.status_code >= 400:
         return response

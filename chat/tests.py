@@ -1042,10 +1042,10 @@ class SwapActionTests(ChatTestBase):
                 conversation=self.conv,
                 sender=self.amelia,
                 message_type=Message.MessageType.TEXT,
-                content='Permintaan swap ditolak.',
+                content='Swap request declined.',
             ).exists()
         )
-        self.assertContains(response, 'Permintaan swap ditolak.')
+        self.assertContains(response, 'Swap request declined.')
 
 class SwapCardGuardTests(ChatTestBase):
     def make_card(self, status=SwapRequest.Status.PENDING):
@@ -1106,4 +1106,4 @@ class SwapCardGuardTests(ChatTestBase):
             HTTP_HX_REQUEST='true',
         )
         resp = self.client.get(reverse('chat:index'))
-        self.assertNotContains(resp, 'Swap request declined')
+        self.assertEqual([str(m) for m in resp.context['messages']], [])        

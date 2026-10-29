@@ -23,31 +23,6 @@ def ensure_swap_card(conversation, swap_request):
     return msg
 
 
-def sync_swap_cards(conversation):
-    """Backfill missing swap cards for every request between room participants."""
-    # Import here to keep Chat's model initialization independent from Swap.
-    from swap.models import SwapRequest
-
-    pair = (
-        Q(sender_id=conversation.user1_id, recipient_id=conversation.user2_id)
-        | Q(sender_id=conversation.user2_id, recipient_id=conversation.user1_id)
-    )
-    requests = list(
-        SwapRequest.objects.filter(pair).select_related('sender').order_by('created_at', 'pk')
-    )
-    if not requests:
-        return 0
-
-    request_ids = [swap_request.pk for swap_request in requests]
-    existing_ids = set(Message.objects.filter(
-        message_type=Message.MessageType.SWAP,
-        swap_request_id__in=request_ids,
-    ).values_list('swap_request_id', flat=True))
-    for swap_request in requests:
-        ensure_swap_card(conversation, swap_request)
-    return len(set(request_ids) - existing_ids)
-
-
 def post_swap_update(conversation, actor, text):
     message = Message.objects.create(
         conversation=conversation,
@@ -67,15 +42,15 @@ def users_blocked(user_a_id, user_b_id):
 
 
 _SWAP_EVENT_TEXTS = {
-    'request_accepted': 'Penawaran swap disetujui. Kalian bisa melanjutkan pertukaran barang.',
-    'request_declined': 'Permintaan swap ditolak.',
-    'request_cancelled': 'Permintaan swap dibatalkan.',
-    'cancellation_requested': 'Meminta pembatalan swap. Menunggu persetujuan pihak lain.',
-    'cancellation_approved': 'Pembatalan swap disetujui oleh kedua pihak.',
-    'cancellation_dismissed': 'Permintaan pembatalan ditolak. Swap dapat dilanjutkan.',
-    'exchange_started': 'Pertukaran dimulai. Setelah barang ditukar, kedua pihak perlu mengonfirmasi penyelesaian.',
-    'completion_confirmed': 'Satu pihak telah mengonfirmasi penyelesaian swap. Menunggu konfirmasi pihak lain.',
-    'swap_completed': 'Swap selesai. Kedua barang telah ditandai sudah ditukar.',
+    'request_accepted': 'Swap agreed. Complete the exchange before leaving a review.',
+    'request_declined': 'Swap request declined.',
+    'request_cancelled': 'Swap request cancelled.',
+    'cancellation_requested': 'Cancellation requested. Waiting for the other person to agree.',
+    'cancellation_approved': 'Swap cancelled by both people.',
+    'cancellation_dismissed': 'Cancellation declined. The swap can continue.',
+    'exchange_started': 'Exchange started. Both people must confirm once the exchange is finished.',
+    'completion_confirmed': 'One person confirmed the exchange. Waiting for the other person.',
+    'swap_completed': 'Swap completed.',
 }
 
 
