@@ -1,3 +1,4 @@
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
@@ -19,6 +20,24 @@ SORT_OPTIONS = [
 
 # Only "offered" statuses are meaningful as a feed filter (not personal / swapped)
 OFFER_CHOICES = [(s.value, s.label) for s in Clothing.OFFER_STATUSES]
+
+# Hero banner: 8 blob-shaped tiles in a grid. Recent outfit photos fill the tiles
+# in HERO_PHOTO_ORDER; tiles without a photo (and "d" / "h") become decorative blobs.
+HERO_SLOTS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+HERO_PHOTO_ORDER = ['f', 'b', 'e', 'g', 'a', 'c']
+
+
+def _hero_context():
+    latest = list(OutfitPost.objects.select_related('author')[:len(HERO_PHOTO_ORDER)])
+    by_slot = dict(zip(HERO_PHOTO_ORDER, latest))
+    return {
+        'hero_tiles': [(slot, by_slot.get(slot)) for slot in HERO_SLOTS],
+        'hero_stats': {
+            'outfits': OutfitPost.objects.count(),
+            'offered': Clothing.objects.offered().count(),
+            'members': get_user_model().objects.count(),
+        },
+    }
 
 
 def feed_list(request):
@@ -79,6 +98,12 @@ def feed_list(request):
         'querystring': params.urlencode(),
         'has_filters': bool(q or sizes or conditions or offers),
     }
+
+    # The hero banner only shows on the first, unfiltered page of the feed
+    context['show_hero'] = not context['has_filters'] and page_obj.number == 1
+    if context['show_hero']:
+        context.update(_hero_context())
+
     return render(request, 'feed/feed_list.html', context)
 
 
