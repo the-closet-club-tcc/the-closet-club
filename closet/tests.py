@@ -294,14 +294,20 @@ class PublicViewTests(ClosetTestBase):
         self.assertContains(resp, 'Offered Piece')
         self.assertContains(resp, 'Sign in to swap or chat')
 
-    def test_personal_detail_hidden_from_others_but_not_owner(self):
+    def test_personal_detail_visible_to_everyone_without_actions(self):
         url = self.personal.get_absolute_url()
-        self.assertEqual(self.client.get(url).status_code, 404)
-        self.login(self.bob)
-        self.assertEqual(self.client.get(url).status_code, 404)
-        self.client.logout()
-        self.login(self.alice)
-        self.assertEqual(self.client.get(url).status_code, 200)
+        swap_url = reverse('swap:save_interest', args=[self.personal.pk])
+        for login_as in (None, self.bob, self.alice):
+            self.client.logout()
+            if login_as:
+                self.login(login_as)
+            resp = self.client.get(url)
+            self.assertEqual(resp.status_code, 200)
+            self.assertContains(resp, 'Private Piece')
+            self.assertNotContains(resp, swap_url)
+            self.assertNotContains(resp, 'Chat with')
+            if login_as != self.alice:
+                self.assertContains(resp, 'not offered for swap')
 
     def test_swapped_detail_shows_unavailable_without_chat(self):
         self.login(self.bob)
@@ -453,3 +459,27 @@ class InterestedButtonTests(ClosetTestBase):
         resp = self.client.get(self.swappable.get_absolute_url())
         self.assertContains(resp, 'Sign in to swap or chat')
         self.assertNotContains(resp, self.url(self.swappable))
+
+
+class ProfileLinkTests(ClosetTestBase):
+    def setUp(self):
+        super().setUp()
+        self.item = self.make_item(name='Linked', status='barter')
+
+    def test_user_closet_links_to_public_profile(self):
+        resp = self.client.get(reverse('closet:user_closet', args=['alice']))
+        url = reverse('public_profile', args=['alice'])
+        self.assertContains(resp, f'href="{url}"', count=2)  # foto + tombol
+        self.assertContains(resp, 'View profile')
+
+    def test_detail_owner_box_links_to_public_profile_for_others(self):
+        self.login(self.bob)
+        resp = self.client.get(self.item.get_absolute_url())
+        url = reverse('public_profile', args=['alice'])
+        self.assertContains(resp, f'href="{url}"', count=2)  # foto + username
+
+    def test_detail_owner_box_links_to_own_profile_for_owner(self):
+        self.login(self.alice)
+        resp = self.client.get(self.item.get_absolute_url())
+        self.assertContains(resp, f'href="{reverse("profile")}"')
+        self.assertNotContains(resp, reverse('public_profile', args=['alice']))

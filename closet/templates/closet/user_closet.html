@@ -13,11 +13,13 @@
 
         <header class="closet-header">
             <div class="closet-owner">
-                {% if owner.foto_profil %}
-                <img src="{{ owner.foto_profil.url }}" alt="" class="closet-avatar">
-                {% else %}
-                <span class="closet-avatar closet-avatar--empty">{{ owner.username|slice:":1"|upper }}</span>
-                {% endif %}
+                <a href="{% url 'public_profile' owner.username %}" class="closet-avatar-link" aria-label="View {{ owner.username }}'s profile">
+                    {% if owner.foto_profil %}
+                    <img src="{{ owner.foto_profil.url }}" alt="" class="closet-avatar">
+                    {% else %}
+                    <span class="closet-avatar closet-avatar--empty">{{ owner.username|slice:":1"|upper }}</span>
+                    {% endif %}
+                </a>
                 <div>
                     <h1>{{ owner.username }}'s Closet</h1>
                     <p>
@@ -25,6 +27,7 @@
                         {% if rating %}&#9733; {{ rating }}{% else %}No reviews yet{% endif %}
                         &middot; {{ page.paginator.count }} item{{ page.paginator.count|pluralize }} available
                     </p>
+                    <a href="{% url 'public_profile' owner.username %}" class="closet-btn closet-btn--ghost closet-btn--small closet-view-profile">View profile</a>
                 </div>
             </div>
         </header>

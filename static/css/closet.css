@@ -362,6 +362,16 @@
     flex-shrink: 0;
 }
 
+.closet-avatar-link {
+    display: inline-flex;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.closet-view-profile {
+    margin-top: 10px;
+}
+
 .closet-avatar--empty {
     display: inline-flex;
     align-items: center;
@@ -369,6 +379,13 @@
     background: var(--closet-beige);
     font-weight: 700;
     font-size: 20px;
+}
+
+/* Avatar besar di header User Closet (kotak pemilik di detail item tetap kecil) */
+.closet-owner .closet-avatar {
+    width: 96px;
+    height: 96px;
+    font-size: 38px;
 }
 
 .closet-verified {
@@ -585,6 +602,12 @@
 }
 
 @media (max-width: 600px) {
+    .closet-owner .closet-avatar {
+        width: 72px;
+        height: 72px;
+        font-size: 28px;
+    }
+
     .closet-page {
         padding: 30px 20px 55px;
     }

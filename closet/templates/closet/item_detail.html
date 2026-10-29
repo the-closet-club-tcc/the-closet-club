@@ -41,13 +41,15 @@
                 {% endif %}
 
                 <div class="closet-owner-box">
-                    {% if owner.foto_profil %}
-                    <img src="{{ owner.foto_profil.url }}" alt="" class="closet-avatar">
-                    {% else %}
-                    <span class="closet-avatar closet-avatar--empty">{{ owner.username|slice:":1"|upper }}</span>
-                    {% endif %}
+                    <a href="{% if is_owner %}{% url 'profile' %}{% else %}{% url 'public_profile' owner.username %}{% endif %}" class="closet-avatar-link" aria-label="View {{ owner.username }}'s profile">
+                        {% if owner.foto_profil %}
+                        <img src="{{ owner.foto_profil.url }}" alt="" class="closet-avatar">
+                        {% else %}
+                        <span class="closet-avatar closet-avatar--empty">{{ owner.username|slice:":1"|upper }}</span>
+                        {% endif %}
+                    </a>
                     <div>
-                        <a href="{% if is_owner %}{% url 'closet:index' %}{% else %}{% url 'closet:user_closet' owner.username %}{% endif %}"><strong>{{ owner.username }}</strong></a>
+                        <a href="{% if is_owner %}{% url 'profile' %}{% else %}{% url 'public_profile' owner.username %}{% endif %}"><strong>{{ owner.username }}</strong></a>
                         <p>
                             {% if owner.is_verified %}<span class="closet-verified">Verified</span> &middot; {% endif %}
                             {% if rating %}&#9733; {{ rating }}{% else %}No reviews yet{% endif %}
@@ -87,8 +89,10 @@
                         <a href="{% url 'login' %}" class="closet-btn closet-btn--dark">Sign in to chat with the owner</a>
                         {% endif %}
                         <a href="{% url 'closet:user_closet' owner.username %}" class="closet-btn closet-btn--ghost">See more from this closet</a>
-                    {% else %}
+                    {% elif item.status == 'swapped' %}
                     <p class="closet-unavailable">This item is no longer available.</p>
+                    {% else %}
+                    <p class="closet-unavailable">This item is not offered for swap.</p>
                     {% endif %}
                 </div>
 
