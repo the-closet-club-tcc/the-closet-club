@@ -1,3 +1,4 @@
+
 {% extends 'base.html' %}
 {% load static %}
 
@@ -8,12 +9,96 @@
 {% endblock %}
 
 {% block content %}
+
+<!-- =========================================
+     HERO BANNER
+     ========================================= -->
+
+<section class="feed-hero">
+    <div class="feed-hero-content">
+
+        <span class="feed-hero-eyebrow">
+            A MORE CONSCIOUS WAY TO DRESS
+        </span>
+
+        <h1>
+            Your style.<br>
+            <span>Another story.</span>
+        </h1>
+
+        <p class="feed-hero-description">
+            Discover pre-loved fashion, share the pieces you love,
+            and give your wardrobe a second life. Good style deserves
+            to be passed on.
+        </p>
+
+        <div class="feed-hero-actions">
+            <a href="#feed-form" class="feed-hero-primary">
+                Explore the feed
+            </a>
+
+            {% if user.is_authenticated %}
+            <a href="{% url 'feed:create' %}" class="feed-hero-secondary">
+                <i class="bi bi-plus-lg"></i>
+                Share an outfit
+            </a>
+            {% else %}
+            <a href="{% url 'accounts:login' %}" class="feed-hero-secondary">
+                Join the community
+            </a>
+            {% endif %}
+        </div>
+
+        <div class="feed-hero-note">
+            <span class="feed-hero-note-icon">
+                <i class="bi bi-heart"></i>
+            </span>
+
+            <span>
+                <strong>Wear Again. Share More.</strong>
+                <small>Waste less, one outfit at a time.</small>
+            </span>
+        </div>
+    </div>
+
+    <div class="feed-hero-visual">
+
+        <div class="feed-hero-image-wrap">
+            <img
+                src="{% static 'img/swap-jacket.jpg' %}"
+                alt="Pre-loved clothing ready for a new story"
+                class="feed-hero-image"
+            >
+        </div>
+
+        <div class="feed-hero-image-caption">
+            <span class="feed-hero-caption-icon">
+                <i class="bi bi-arrow-repeat"></i>
+            </span>
+
+            <span>
+                <strong>Pre-loved, re-loved.</strong>
+                <small>Find your next favourite.</small>
+            </span>
+        </div>
+
+        <span class="feed-hero-decoration" aria-hidden="true">
+            TCC.
+        </span>
+    </div>
+</section>
+
+
+<!-- =========================================
+     FEED, FILTERS AND POSTS
+     ========================================= -->
+
 <div class="feed-page">
 
-    <!-- FEED FORM -->
     <form method="get" class="feed-layout" id="feed-form">
 
         <!-- FILTER SIDEBAR -->
+
         <aside class="filter-panel">
 
             <fieldset class="filter-group">
@@ -83,9 +168,11 @@
 
 
         <!-- FEED RESULTS -->
+
         <section class="feed-results">
 
-            <!-- SEARCH + SORT TOOLBAR -->
+            <!-- SEARCH AND SORT TOOLBAR -->
+
             <div class="feed-toolbar">
 
                 <div class="search-box">
@@ -106,7 +193,6 @@
 
                     {% for key, label in sort_options %}
                     <label class="pill">
-
                         <input
                             type="radio"
                             name="sort"
@@ -119,10 +205,8 @@
                             {% if sort == key %}
                             <i class="bi bi-check2"></i>
                             {% endif %}
-
                             {{ label }}
                         </span>
-
                     </label>
                     {% endfor %}
 
@@ -138,7 +222,8 @@
             </div>
 
 
-            <!-- OUTFIT CARDS -->
+            <!-- OUTFIT GRID -->
+
             {% if page_obj.object_list %}
 
             <div class="feed-grid">
@@ -151,6 +236,7 @@
 
 
             <!-- PAGINATION -->
+
             {% if page_obj.has_other_pages %}
 
             <nav class="pagination" aria-label="Pagination">
@@ -162,7 +248,8 @@
                 {% endif %}
 
                 <span>
-                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                    Page {{ page_obj.number }}
+                    of {{ page_obj.paginator.num_pages }}
                 </span>
 
                 {% if page_obj.has_next %}
@@ -176,7 +263,8 @@
             {% endif %}
 
 
-            <!-- EMPTY STATE -->
+            <!-- EMPTY FEED -->
+
             {% else %}
 
             <div class="feed-empty">
@@ -208,6 +296,7 @@
     </form>
 
 </div>
+
 {% endblock %}
 
 
