@@ -17,7 +17,7 @@
             <form method="post" class="closet-form-actions">
                 {% csrf_token %}
                 <button type="submit" class="closet-btn closet-btn--danger-solid">Yes, delete</button>
-                <a href="{% url 'closet:my_closet' %}" class="closet-btn closet-btn--ghost">Cancel</a>
+                <a href="{% url 'closet:index' %}" class="closet-btn closet-btn--ghost">Cancel</a>
             </form>
         </div>
     </div>

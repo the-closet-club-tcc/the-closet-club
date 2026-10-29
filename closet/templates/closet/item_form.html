@@ -11,7 +11,7 @@
 <section class="closet-page">
     <div class="closet-container closet-container--narrow">
 
-        <p class="closet-back"><a href="{% url 'closet:my_closet' %}">&larr; Back to My Closet</a></p>
+        <p class="closet-back"><a href="{% url 'closet:index' %}">&larr; Back to My Closet</a></p>
 
         <header class="closet-header">
             <div>
@@ -55,7 +55,7 @@
 
                 <div class="closet-form-actions">
                     <button type="submit" class="closet-btn closet-btn--dark">{% if item %}Save changes{% else %}Add to closet{% endif %}</button>
-                    <a href="{% url 'closet:my_closet' %}" class="closet-btn closet-btn--ghost">Cancel</a>
+                    <a href="{% url 'closet:index' %}" class="closet-btn closet-btn--ghost">Cancel</a>
                 </div>
             </div>
         </form>

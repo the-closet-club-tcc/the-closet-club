@@ -26,14 +26,14 @@
 
         <nav class="closet-tabs" aria-label="Filter by availability">
             {% for tab in tabs %}
-            <a href="{% url 'closet:my_closet' %}{% if tab.value %}?status={{ tab.value }}{% endif %}"
+            <a href="{% url 'closet:index' %}{% if tab.value %}?status={{ tab.value }}{% endif %}"
                class="closet-tab {% if tab.active %}is-active{% endif %}">
                 {{ tab.label }} <span>{{ tab.count }}</span>
             </a>
             {% endfor %}
         </nav>
 
-        {% url 'closet:my_closet' as action_url %}
+        {% url 'closet:index' as action_url %}
         {% include 'closet/_filters.html' with action_url=action_url keep_status=True %}
 
         <div id="closet-results">

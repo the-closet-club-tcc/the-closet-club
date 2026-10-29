@@ -68,7 +68,7 @@ class ModelTests(ClosetTestBase):
 class MyClosetViewTests(ClosetTestBase):
     def test_requires_login(self):
         for url in [
-            reverse('closet:my_closet'), reverse('closet:item_add'),
+            reverse('closet:index'), reverse('closet:item_add'),
             reverse('closet:item_edit', args=[1]), reverse('closet:item_delete', args=[1]),
         ]:
             resp = self.client.get(url)
@@ -79,19 +79,19 @@ class MyClosetViewTests(ClosetTestBase):
         self.make_item(name='Mine')
         self.make_item(owner=self.bob, name='Theirs')
         self.login(self.alice)
-        resp = self.client.get(reverse('closet:my_closet'))
+        resp = self.client.get(reverse('closet:index'))
         self.assertContains(resp, 'Mine')
         self.assertNotContains(resp, 'Theirs')
 
     def test_empty_state(self):
         self.login(self.alice)
-        self.assertContains(self.client.get(reverse('closet:my_closet')), 'Your closet is empty')
+        self.assertContains(self.client.get(reverse('closet:index')), 'Your closet is empty')
 
     def test_search_and_filters(self):
         self.make_item(name='Linen Shirt', size='L', condition='new', status='barter')
         self.make_item(name='Wool Coat', size='M', condition='fair')
         self.login(self.alice)
-        url = reverse('closet:my_closet')
+        url = reverse('closet:index')
         self.assertContains(self.client.get(url, {'q': 'linen'}), 'Linen Shirt')
         self.assertNotContains(self.client.get(url, {'q': 'linen'}), 'Wool Coat')
         self.assertNotContains(self.client.get(url, {'size': 'L'}), 'Wool Coat')
@@ -104,7 +104,7 @@ class MyClosetViewTests(ClosetTestBase):
         for i in range(13):
             self.make_item(name=f'Item {i:02d}')
         self.login(self.alice)
-        url = reverse('closet:my_closet')
+        url = reverse('closet:index')
         self.assertEqual(len(self.client.get(url).context['page'].object_list), 12)
         self.assertEqual(len(self.client.get(url, {'page': 2}).context['page'].object_list), 1)
 
@@ -121,7 +121,7 @@ class CreateEditDeleteTests(ClosetTestBase):
     def test_create_sets_owner_from_request(self):
         self.login(self.alice)
         resp = self.client.post(reverse('closet:item_add'), self.valid_data())
-        self.assertRedirects(resp, reverse('closet:my_closet'))
+        self.assertRedirects(resp, reverse('closet:index'))
         item = Clothing.objects.get()
         self.assertEqual(item.owner, self.alice)
         self.assertEqual(item.status, 'barter')
@@ -167,7 +167,7 @@ class CreateEditDeleteTests(ClosetTestBase):
         data = self.valid_data(name='Renamed')
         del data['photo']
         resp = self.client.post(reverse('closet:item_edit', args=[item.pk]), data)
-        self.assertRedirects(resp, reverse('closet:my_closet'))
+        self.assertRedirects(resp, reverse('closet:index'))
         item.refresh_from_db()
         self.assertEqual(item.name, 'Renamed')
         self.assertEqual(item.photo.name, old)
@@ -201,7 +201,7 @@ class CreateEditDeleteTests(ClosetTestBase):
         url = reverse('closet:item_delete', args=[item.pk])
         self.assertContains(self.client.get(url), 'Remove this item?')
         self.assertEqual(Clothing.objects.count(), 1)
-        self.assertRedirects(self.client.post(url), reverse('closet:my_closet'))
+        self.assertRedirects(self.client.post(url), reverse('closet:index'))
         self.assertEqual(Clothing.objects.count(), 0)
 
 
@@ -211,9 +211,9 @@ class StatusTests(ClosetTestBase):
         self.login(self.alice)
         resp = self.client.post(
             reverse('closet:item_status', args=[item.pk]),
-            {'status': 'top_up', 'next': reverse('closet:my_closet') + '?status=personal'},
+            {'status': 'top_up', 'next': reverse('closet:index') + '?status=personal'},
         )
-        self.assertRedirects(resp, reverse('closet:my_closet') + '?status=personal')
+        self.assertRedirects(resp, reverse('closet:index') + '?status=personal')
         item.refresh_from_db()
         self.assertEqual(item.status, 'top_up')
 
@@ -231,7 +231,7 @@ class StatusTests(ClosetTestBase):
             reverse('closet:item_status', args=[item.pk]),
             {'status': 'barter', 'next': 'https://evil.example.com/'},
         )
-        self.assertRedirects(resp, reverse('closet:my_closet'))
+        self.assertRedirects(resp, reverse('closet:index'))
 
     def test_get_not_allowed(self):
         item = self.make_item()
@@ -258,7 +258,7 @@ class PublicViewTests(ClosetTestBase):
     def test_owner_visiting_own_public_closet_goes_to_my_closet(self):
         self.login(self.alice)
         resp = self.client.get(reverse('closet:user_closet', args=['alice']))
-        self.assertRedirects(resp, reverse('closet:my_closet'))
+        self.assertRedirects(resp, reverse('closet:index'))
 
     def test_public_closet_has_no_owner_controls(self):
         self.login(self.bob)

@@ -180,7 +180,7 @@
             <p>{% if is_incoming %}Requests will appear here when someone is interested in your piece.{% else %}Swipe right on a piece in Discover to send your first request.{% endif %}</p>
             <div class="swap-finished-actions">
                 {% if is_incoming %}
-                <a href="{% url 'closet:my_closet' %}">View My Closet &rarr;</a>
+                <a href="{% url 'closet:index' %}">View My Closet &rarr;</a>
                 {% else %}
                 <a href="{% url 'swap:interested' %}">View interested items &rarr;</a>
                 {% endif %}
