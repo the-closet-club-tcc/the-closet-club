@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Review your swap | The Closet Club{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/swap.css' %}?v=22">
+{% endblock %}
+
+{% block content %}
+<section class="swap-page swap-proposal-page">
+    <div class="swap-container">
+        <header class="swap-header">
+            <h1>Review your swap</h1>
+            <p>Share your experience exchanging with {{ partner.username }}.</p>
+        </header>
+        {% include 'swap/_navigation.html' with active='requests' %}
+        <form method="post" class="swap-review-form">
+            {% csrf_token %}
+            <div class="swap-review-summary">
+                <span class="swap-eyebrow">Completed swap #{{ proposal.pk }}</span>
+                <h2><a href="{% url 'public_profile' partner.username %}">{{ partner.username }}</a></h2>
+                <p>{{ proposal.requested_item.name|default:'Unavailable piece' }} &middot; {{ proposal.offered_item.name|default:'Unavailable piece' }}</p>
+            </div>
+            {% if form.non_field_errors %}<div class="swap-form-errors" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+            <fieldset class="swap-review-rating" aria-describedby="rating-errors">
+                <legend>How was your exchange?</legend>
+                {{ form.rating }}
+                <div id="rating-errors" class="swap-form-errors" {% if form.rating.errors %}role="alert"{% endif %}>{{ form.rating.errors }}</div>
+            </fieldset>
+            <div>
+                <label for="{{ form.komentar.id_for_label }}">Your experience (optional)</label>
+                {{ form.komentar }}
+                <div class="swap-form-errors" {% if form.komentar.errors %}role="alert"{% endif %}>{{ form.komentar.errors }}</div>
+            </div>
+            <p class="swap-proposal-hint">Your rating and comment will appear on their public profile. You can submit one review for this swap.</p>
+            <div class="swap-proposal-actions">
+                <button class="swap-primary" type="submit">Submit review</button>
+                <a class="swap-back-link" href="{% url destination %}">Back to swap requests</a>
+            </div>
+        </form>
+    </div>
+</section>
+{% endblock %}

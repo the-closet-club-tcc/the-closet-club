@@ -96,3 +96,16 @@ class SwapRequest(models.Model):
                 name='swap_request_different_items',
             ),
         ]
+
+
+class SwapReview(models.Model):
+    swap_request = models.ForeignKey(SwapRequest, on_delete=models.CASCADE, related_name='reviews')
+    reviewer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='swap_reviews')
+    review = models.OneToOneField(
+        'accounts.Review', on_delete=models.SET_NULL, null=True, related_name='swap_review',
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['swap_request', 'reviewer'], name='unique_review_per_swap_user'),
+        ]
