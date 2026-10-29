@@ -1107,3 +1107,134 @@ class SwapCardGuardTests(ChatTestBase):
         )
         resp = self.client.get(reverse('chat:index'))
         self.assertEqual([str(m) for m in resp.context['messages']], [])        
+
+
+class SwapActionEventTests(ChatTestBase):
+    """Pemetaan event Chat, tanpa bergantung pada logika internal Swap (view Swap di-mock)."""
+
+    @staticmethod
+    def to_status(new_status):
+        def mutate(sr):
+            sr.status = new_status
+            sr.save(update_fields=['status'])
+        return mutate
+
+    def run_action(self, user, status, mutate, action='accept', htmx=True, **fields):
+        from django.http import HttpResponse
+        proposal = SwapRequest.objects.create(
+            sender=self.burhania, recipient=self.amelia, status=status, **fields,
+        )
+
+        def fake_swap_view(request, pk, action):
+            mutate(SwapRequest.objects.get(pk=pk))
+            return HttpResponse(status=302)
+
+        self.login(user)
+        extra = {'HTTP_HX_REQUEST': 'true'} if htmx else {}
+        with mock.patch('chat.views._swap_update_request_status', side_effect=fake_swap_view):
+            resp = self.client.post(
+                reverse('chat:swap_action', args=[self.conv.pk, proposal.pk, action]),
+                **extra,
+            )
+        return proposal, resp
+
+    def assert_notice(self, user, text):
+        self.assertTrue(
+            Message.objects.filter(
+                conversation=self.conv, sender=user,
+                message_type=Message.MessageType.TEXT, content=text,
+            ).exists(),
+            text,
+        )
+
+    def test_accept_posts_agreed_notice(self):
+        self.run_action(self.burhania, SwapRequest.Status.COUNTERED,
+                        self.to_status(SwapRequest.Status.ACCEPTED), 'accept')
+        self.assert_notice(
+            self.burhania, 'Swap agreed. Complete the exchange before leaving a review.')
+
+    def test_start_posts_exchange_started_notice(self):
+        self.run_action(self.amelia, SwapRequest.Status.ACCEPTED,
+                        self.to_status(SwapRequest.Status.IN_PROGRESS), 'start')
+        self.assert_notice(
+            self.amelia,
+            'Exchange started. Both people must confirm once the exchange is finished.')
+
+    def test_complete_posts_completed_notice(self):
+        self.run_action(self.amelia, SwapRequest.Status.IN_PROGRESS,
+                        self.to_status(SwapRequest.Status.COMPLETED), 'complete')
+        self.assert_notice(self.amelia, 'Swap completed.')
+
+    def test_decline_posts_declined_notice(self):
+        self.run_action(self.amelia, SwapRequest.Status.PENDING,
+                        self.to_status(SwapRequest.Status.DECLINED), 'decline')
+        self.assert_notice(self.amelia, 'Swap request declined.')
+
+    def test_cancel_pending_posts_cancelled_notice(self):
+        self.run_action(self.burhania, SwapRequest.Status.PENDING,
+                        self.to_status(SwapRequest.Status.CANCELLED), 'cancel')
+        self.assert_notice(self.burhania, 'Swap request cancelled.')
+
+    def test_cancellation_request_posts_waiting_notice(self):
+        def mutate(sr):
+            sr.cancellation_requested_by = self.amelia
+            sr.save(update_fields=['cancellation_requested_by'])
+        self.run_action(self.amelia, SwapRequest.Status.ACCEPTED, mutate, 'cancel')
+        self.assert_notice(
+            self.amelia, 'Cancellation requested. Waiting for the other person to agree.')
+
+    def test_cancellation_approved_posts_notice(self):
+        self.run_action(
+            self.burhania, SwapRequest.Status.ACCEPTED,
+            self.to_status(SwapRequest.Status.CANCELLED), 'cancel',
+            cancellation_requested_by=self.amelia,
+        )
+        self.assert_notice(self.burhania, 'Swap cancelled by both people.')
+
+    def test_cancellation_dismissed_posts_notice(self):
+        def mutate(sr):
+            sr.cancellation_requested_by = None
+            sr.save(update_fields=['cancellation_requested_by'])
+        self.run_action(self.burhania, SwapRequest.Status.ACCEPTED, mutate, 'keep',
+                        cancellation_requested_by=self.amelia)
+        self.assert_notice(
+            self.burhania, 'Cancellation declined. The swap can continue.')
+
+    def test_single_completion_confirmation_posts_waiting_notice(self):
+        from django.utils import timezone
+
+        def mutate(sr):
+            sr.sender_confirmed_at = timezone.now()
+            sr.save(update_fields=['sender_confirmed_at'])
+        self.run_action(self.burhania, SwapRequest.Status.IN_PROGRESS, mutate, 'complete')
+        self.assert_notice(
+            self.burhania, 'One person confirmed the exchange. Waiting for the other person.')
+
+    def test_no_change_posts_nothing_and_explains(self):
+        before = Message.objects.count()
+        _, resp = self.run_action(
+            self.amelia, SwapRequest.Status.DECLINED, lambda sr: None, 'decline')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(Message.objects.count(), before)  # tidak ada pesan status baru
+        notice = resp.context.get('swap_notice')
+        self.assertTrue(notice and 'Tidak ada perubahan' in notice)
+
+    def test_blocked_pair_gets_no_status_message(self):
+        Block.objects.create(blocker=self.burhania, blocked=self.amelia)
+        proposal, resp = self.run_action(
+            self.amelia, SwapRequest.Status.ACCEPTED,
+            self.to_status(SwapRequest.Status.IN_PROGRESS), 'start')
+        self.assertEqual(resp.status_code, 200)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, SwapRequest.Status.IN_PROGRESS)
+        self.assertFalse(Message.objects.filter(
+            conversation=self.conv, message_type=Message.MessageType.TEXT,
+            content__startswith='Exchange started',
+        ).exists())
+
+    def test_non_htmx_action_redirects_back_to_room(self):
+        _, resp = self.run_action(
+            self.amelia, SwapRequest.Status.PENDING,
+            self.to_status(SwapRequest.Status.DECLINED), 'decline', htmx=False)
+        self.assertRedirects(
+            resp, reverse('chat:room', args=[self.conv.pk]), fetch_redirect_response=False)
