@@ -394,6 +394,18 @@
     color: #4b5a4e;
 }
 
+.profile-verification .async-feedback:empty,
+.async-feedback:empty { display: none; }
+
+.async-feedback {
+    margin: 0 0 12px;
+    color: var(--tcc-olive);
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.async-feedback.is-error { color: #a14d45; }
+
 .profile-verify-btn {
     margin-top: 14px;
     padding: 10px 18px;

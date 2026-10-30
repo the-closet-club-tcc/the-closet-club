@@ -4,7 +4,9 @@ from django.db import transaction
 from django.db.models import Q
 from django.contrib.auth import login, logout, get_user_model
 from django.contrib.auth.forms import AuthenticationForm
+from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST, require_GET
 from django.contrib.auth.decorators import login_required
@@ -134,7 +136,7 @@ def delete_account(request):
             user = request.user
             logout(request)
             user.delete()
-            messages.success(request, "Akun kamu berhasil dihapus.")
+            messages.success(request, "Your account has been deleted.")
             return redirect("home")
     else:
         form = DeleteAccountConfirmationForm(user=request.user)
@@ -157,14 +159,23 @@ def public_profile(request, username):
 @require_POST
 @transaction.atomic
 def request_verification(request):
+    wants_json = request.headers.get("x-requested-with") == "XMLHttpRequest"
     user = User.objects.select_for_update().get(pk=request.user.pk)
     if user.is_verified:
+        if wants_json:
+            return JsonResponse({"success": True, "status": "verified", "message": "Your account is already verified."})
         messages.info(request, "Your account is already verified.")
         return redirect("profile")
 
     try:
         user.validate_verification_details()
     except ValidationError:
+        if wants_json:
+            return JsonResponse({
+                "success": False,
+                "message": "Please enter your first name, last name, and a valid email address before requesting verification.",
+                "redirect_url": reverse("edit_profile"),
+            }, status=400)
         messages.error(
             request,
             "Please enter your first name, last name, and a valid email address before requesting verification."
@@ -175,39 +186,41 @@ def request_verification(request):
     )
 
     if created:
-        messages.success(
-            request,
-            "Your verification request has been submitted."
-        )
+        message = "Your verification request has been submitted."
+        message_level = "success"
     elif verification.status == "rejected":
         verification.status = "pending"
         verification.save(update_fields=["status"])
-        messages.success(
-            request,
-            "Your verification request has been resubmitted."
-        )
+        message = "Your verification request has been resubmitted."
+        message_level = "success"
     else:
-        messages.info(
-            request,
-            "Your verification request has already been submitted."
-        )
+        message = "Your verification request has already been submitted."
+        message_level = "info"
+    if wants_json:
+        return JsonResponse({"success": True, "status": verification.status, "message": message})
+    getattr(messages, message_level)(request, message)
     return redirect("profile")
 
 @login_required(login_url="login")
 @require_POST
 @transaction.atomic
 def add_review(request, username):
+    wants_json = request.headers.get("x-requested-with") == "XMLHttpRequest"
     penerima = get_object_or_404(
         User,
         username=username
     )
 
     if request.user.pk == penerima.pk:
+        if wants_json:
+            return JsonResponse({"success": False, "message": "You cannot review your own account."}, status=400)
         messages.error(request, "You cannot review your own account.")
         return redirect("profile")
 
     swap_request = _reviewable_swap(request.user, penerima)
     if swap_request is None:
+        if wants_json:
+            return JsonResponse({"success": False, "message": "You can submit only one review for each completed swap."}, status=400)
         messages.error(request, "You can submit only one review for each completed swap.")
         return redirect("public_profile", username=penerima.username)
 
@@ -218,7 +231,23 @@ def add_review(request, username):
         review.penerima_review = penerima
         review.swap_request = swap_request
         review.save()
+        if wants_json:
+            review_count = penerima.reviews_received.count()
+            return JsonResponse({
+                "success": True,
+                "message": "Your review has been submitted.",
+                "review": {
+                    "username": request.user.username,
+                    "rating": str(review.rating),
+                    "comment": review.komentar or "No comment.",
+                    "date": timezone.localtime(review.tanggal).strftime("%d %B %Y"),
+                    "average": penerima.get_rata_rata_rating(),
+                    "count": review_count,
+                },
+            })
         messages.success(request, "Your review has been submitted.")
     else:
+        if wants_json:
+            return JsonResponse({"success": False, "message": "Please choose a valid rating and try again."}, status=400)
         messages.error(request, "Invalid rating. Please try again.")
     return redirect("public_profile", username=penerima.username)

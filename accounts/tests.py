@@ -328,6 +328,62 @@ class ProfileTests(TestCase):
         self.user.refresh_from_db()
         self.assertFalse(self.user.is_verified)
 
+
+class DeleteAccountTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="delete_me",
+            email="delete_me@example.com",
+            password="TestDelete123",
+        )
+        self.url = reverse("delete_account")
+
+    def test_delete_account_requires_login(self):
+        response = self.client.get(self.url)
+
+        self.assertRedirects(
+            response,
+            f"{reverse('login')}?next={self.url}",
+        )
+
+    def test_delete_account_confirmation_page(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "accounts/delete_account.html")
+        self.assertContains(response, "Confirm Account Deletion")
+        self.assertContains(response, 'name="username"')
+        self.assertContains(response, 'name="password"')
+
+    def test_delete_account_rejects_incorrect_username_or_password(self):
+        self.client.force_login(self.user)
+        invalid_confirmations = (
+            {"username": "someone_else", "password": "TestDelete123"},
+            {"username": "delete_me", "password": "WrongPassword123"},
+        )
+
+        for confirmation in invalid_confirmations:
+            with self.subTest(confirmation=confirmation):
+                response = self.client.post(self.url, confirmation)
+
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(User.objects.filter(pk=self.user.pk).exists())
+                self.assertEqual(self.client.session.get("_auth_user_id"), str(self.user.pk))
+
+    def test_delete_account_with_correct_credentials_deletes_user_and_logs_out(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            self.url,
+            {"username": "delete_me", "password": "TestDelete123"},
+        )
+
+        self.assertRedirects(response, reverse("home"))
+        self.assertFalse(User.objects.filter(pk=self.user.pk).exists())
+        self.assertNotIn("_auth_user_id", self.client.session)
+
 # public profile test
 class PublicProfileTests(TestCase):
     def setUp(self):

@@ -65,7 +65,7 @@
                 <div class="profile-meta">
 
                     <!-- rating -->
-                    <div class="profile-rating">
+                    <div class="profile-rating" id="profile-rating-summary">
                         {% if user_profile.reviews_received.count %}
                             <span>
                                 ★ {{ user_profile.get_rata_rata_rating }} / 5
@@ -104,7 +104,8 @@
         
         <!-- account verification -->
         {% if user == user_profile %}
-        <section class="profile-verification">
+        <section class="profile-verification" id="profile-verification">
+            <p class="async-feedback" id="verification-feedback" role="status" aria-live="polite"></p>
 
             <h2>Account Verification</h2>
 
@@ -126,7 +127,7 @@
                     Your previous verification request was rejected.
                 </p>
 
-                <form method="POST" action="{% url 'request_verification' %}">
+                <form method="POST" action="{% url 'request_verification' %}" class="async-verification-form">
                     {% csrf_token %}
                     <button type="submit" class="profile-verify-btn">
                         Request Verification Again
@@ -135,12 +136,12 @@
 
             {% else %}
 
-                <p>
+                <p id="verification-guidance">
                     Complete your profile and request verification
                     to receive a verified badge.
                 </p>
 
-                <form method="POST" action="{% url 'request_verification' %}">
+                <form method="POST" action="{% url 'request_verification' %}" class="async-verification-form">
                     {% csrf_token %}
                     <button type="submit" class="profile-verify-btn">
                         Request Verification
@@ -201,9 +202,10 @@
                         How was your experience swapping with
                         @{{ user_profile.username }}?
                     </p>
+                    <p class="async-feedback" id="review-feedback" role="status" aria-live="polite"></p>
                     <form method="POST"
                         action="{% url 'add_review' user_profile.username %}"
-                        class="inline-review-form">
+                        class="inline-review-form async-review-form">
                         {% csrf_token %}
                         <!-- pilihan bintang -->
                         <fieldset class="review-rating-fieldset">
@@ -271,7 +273,7 @@
             {% endif %}
 
             <!-- review yang sudah ada -->
-            <div class="review-list">
+            <div class="review-list" id="review-list">
                 <h3>Community Reviews</h3>
                 {% for review in reviews %}
                     <div class="profile-review-card">
@@ -294,7 +296,7 @@
                     </div>
                 {% empty %}
 
-                    <p class="profile-empty">
+                    <p class="profile-empty" id="empty-review-message">
                         No reviews yet.
                     </p>
                 {% endfor %}
@@ -303,4 +305,8 @@
     </div>
 </section>
 
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/accounts.js' %}" defer></script>
 {% endblock %}

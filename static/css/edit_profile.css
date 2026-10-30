@@ -332,6 +332,17 @@
 .delete-account-card h1 { color: #8b1f1f; }
 .delete-account-form { display: grid; gap: 18px; }
 .delete-account-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; }
+.delete-account-buttons .btn-cancel,
+.delete-account-buttons .btn-delete-account {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 64px;
+    box-sizing: border-box;
+    padding: 12px 22px;
+    margin: 0;
+    font: 600 16px/1.2 'Work Sans', sans-serif;
+}
 
 @media (max-width: 480px) {
     .delete-account-buttons { flex-direction: column-reverse; }
