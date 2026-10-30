@@ -334,9 +334,29 @@ Untuk memastikan hasilnya benar, saya menjalankan aplikasi di lingkungan lokal, 
 
 ### 5. Modul 5: Swap / Barter & Integrasi API
 - **Nama & NPM**: Naila Husna Teguh Suasono — 2506620444
-- **Tool AI**: ChatGPT / Claude / Gemini
-- **Link Chat**: [Tautan Riwayat Percakapan AI Modul 5](https://chatgpt.com/share/xxxx-link-modul-5)
+- **Tool AI**: ChatGPT
+- **Link Chat**: 
+   - https://chatgpt.com/share/6ae48f05-20e0-83ec-96f7-c08b04e9680e
+   - https://chatgpt.com/share/6ae48f69-8dc0-83ec-ad67-40ae68942ce5
+   - https://chatgpt.com/share/6ae4a054-4a0c-83ec-8542-84ff7ca28c44
 - **Cakupan Penggunaan**:
-  - 
-- **Keterbatasan & Penyesuaian Manual**:
-  - 
+   | Bagian | Kontribusi AI | Kontribusi saya |
+   |---|---|---|
+   | Figma | Mengajarkan bagaimana cara mengoperasikan Figma dan memberikan masukan mengenai tata letak, kompenen UI, serta alur interaksi | Menyesuaikan desain dan memperbaiki tampilan secara manual |
+   | Frontend | Mengelaborasi dan memberikan masukan mengenai struktur HTML, CSS, dan JavaScript | Menyesuaikan dengan kebutuhan modul (menyesuaikan kode dengan design Figma dan struktur Django) |
+   | Backend  | Mengelaborasi mengenai tatanan Django yang masih saya kurang pahami | Mengintegrasi kode dengan proyek dan menyesuaikan dengan arsitektur web yang ingin dibangun |
+   | Debugging | Menyarankan cara pembenaran error | Melakukan testing, memperbaiki, dan menguji web secara manual |
+
+- **Strategi Prompting**
+   1. Memberikan konteks dari *The Pandan Club* adalah web slow fashion berbasis Django dengan modul yang saya handle adalah **Swap atau Barter**
+   2. Menentukan kebutuhan fitur: Menjelaskan design seperti apa yang telah saya diskusikan dan disetujui dengan teman kelompok
+   3. Meminta AI menjelaskan/elaborasi bagian yang saya belum pahami/yakin
+   4. Melakukan penyesuaian dan memastikan kembali dengan memberikan pertanyaan lanjutan apabila jawaban yang diberikan AI masih kurang saya pahami/kurang jekas
+   5. Memberi tau AI apabila solusi yang telah saya sesuaikan 
+
+- **Keterbatasan AI dan Penyesuaian Manual**:
+   | Keterbatasan AI | Evaluasi dan Perbaikan Manual |
+   |---|---|
+   | **Penggunaan Data Dummy** | Pada awalnya, AI memberikan kode yang belum terhubung dengan database. Sehingga saya melakukan modifikasi dengan berpacu dari tutorial tutorial dari website PBP untuk mengintegrasikannya dengan Django |
+   | **Interaksi Swipe** | AI memberikan saran untuk melakukan interaksi swipe. Namun, setelah melakukan *brainstorming dengan AI sendiri*, saya terpikirkan bahwa itu berpotensi menyebabkan beberapa permasalahan. Sehingga, saya menyesuaikannya dengan verifikasi kembali apakah pengguna benar-benar ingin melakukan barter atau tidak |
+   | **Implementasi Desain Figma** | AI memberikan gambaran mengenai layout design, tetapi saya merasa desain tersebut terlalu padat dan kurang *eye pleasing*, sehingga saya menyesuaikannya kembali dengan yg saya inginkan |
