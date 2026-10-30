@@ -4,7 +4,7 @@
 {% block title %}Swap | The Closet Club{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'css/swap.css' %}?v=21">
+{% include 'swap/_styles.html' %}
 {% endblock %}
 
 {% block content %}
@@ -19,7 +19,7 @@
 
         {% include 'swap/_navigation.html' with active='discover' %}
 
-        <nav class="swap-filters" aria-label="Swap options">
+        <nav class="swap-filters sw-flex sw-flex-wrap sw-justify-center" aria-label="Swap options">
             {% for filter in filters %}
             <a href="{% url 'swap:index' %}{% if filter.value %}?status={{ filter.value }}{% endif %}"
                 {% if current_status == filter.value %}aria-current="page"{% endif %}>

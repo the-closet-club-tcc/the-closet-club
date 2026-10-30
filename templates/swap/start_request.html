@@ -2,7 +2,7 @@
 {% load static %}
 {% block title %}Send a swap request | The Closet Club{% endblock %}
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'css/swap.css' %}?v=20">
+{% include 'swap/_styles.html' %}
 {% endblock %}
 {% block content %}
 <section class="swap-page swap-start-page">
