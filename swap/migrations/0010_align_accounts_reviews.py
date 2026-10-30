@@ -23,7 +23,7 @@ def link_existing_reviews(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [
         ('swap', '0009_swapreview'),
-        ('accounts', '0004_review_swap_request_and_more'),
+        ('accounts', '0004_review_swap_request'),
     ]
 
     operations = [

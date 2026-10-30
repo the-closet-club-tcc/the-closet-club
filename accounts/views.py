@@ -35,7 +35,7 @@ def register(request):
 
     if request.method == "POST" and form.is_valid():
         form.save()
-        messages.success(request, "Akun berhasil dibuat! Silakan login.")
+        messages.success(request, "Your account has been created. Please sign in.")
         return redirect("login")
 
     context = {
@@ -108,7 +108,7 @@ def edit_profile(request):
 
         if form.is_valid():
             form.save()
-            messages.success(request, "Profil berhasil diperbarui!")
+            messages.success(request, "Your profile has been updated.")
             return redirect("profile")
 
     else:
@@ -138,7 +138,7 @@ def public_profile(request, username):
 def request_verification(request):
     user = User.objects.select_for_update().get(pk=request.user.pk)
     if user.is_verified:
-        messages.info(request, "Akun kamu sudah terverifikasi.")
+        messages.info(request, "Your account is already verified.")
         return redirect("profile")
 
     try:
@@ -146,7 +146,7 @@ def request_verification(request):
     except ValidationError:
         messages.error(
             request,
-            "Lengkapi nama depan, nama belakang, dan email yang valid terlebih dahulu."
+            "Please enter your first name, last name, and a valid email address before requesting verification."
         )
         return redirect("edit_profile")
     verification, created = Verification.objects.get_or_create(
@@ -156,19 +156,19 @@ def request_verification(request):
     if created:
         messages.success(
             request,
-            "Pengajuan verifikasi berhasil dikirim."
+            "Your verification request has been submitted."
         )
     elif verification.status == "rejected":
         verification.status = "pending"
         verification.save(update_fields=["status"])
         messages.success(
             request,
-            "Pengajuan verifikasi berhasil dikirim ulang."
+            "Your verification request has been resubmitted."
         )
     else:
         messages.info(
             request,
-            "Pengajuan verifikasi kamu sudah tercatat."
+            "Your verification request has already been submitted."
         )
     return redirect("profile")
 
@@ -182,12 +182,12 @@ def add_review(request, username):
     )
 
     if request.user.pk == penerima.pk:
-        messages.error(request, "Kamu tidak bisa memberikan review kepada diri sendiri.")
+        messages.error(request, "You cannot review your own account.")
         return redirect("profile")
 
     swap_request = _reviewable_swap(request.user, penerima)
     if swap_request is None:
-        messages.error(request, "Kamu hanya bisa memberi satu review untuk setiap swap yang sudah selesai.")
+        messages.error(request, "You can submit only one review for each completed swap.")
         return redirect("public_profile", username=penerima.username)
 
     form = ReviewForm(request.POST)
@@ -197,7 +197,7 @@ def add_review(request, username):
         review.penerima_review = penerima
         review.swap_request = swap_request
         review.save()
-        messages.success(request, "Review berhasil dikirim.")
+        messages.success(request, "Your review has been submitted.")
     else:
-        messages.error(request, "Rating tidak valid. Silakan coba lagi.")
+        messages.error(request, "Invalid rating. Please try again.")
     return redirect("public_profile", username=penerima.username)

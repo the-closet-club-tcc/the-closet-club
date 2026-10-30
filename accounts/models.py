@@ -17,11 +17,11 @@ class User(AbstractUser):
         errors = {}
         for name in ("first_name", "last_name"):
             if not getattr(self, name).strip():
-                errors[name] = "Nama depan dan nama belakang wajib diisi."
+                errors[name] = "First and last name are required."
         try:
             validate_email(self.email.strip())
         except ValidationError:
-            errors["email"] = "Email yang valid wajib diisi."
+            errors["email"] = "A valid email address is required."
         if errors:
             raise ValidationError(errors)
 
@@ -34,9 +34,9 @@ class User(AbstractUser):
     
 class Verification(models.Model):
     STATUS_CHOICES = (
-        ('pending', 'Menunggu'),
-        ('approved', 'Disetujui'),
-        ('rejected', 'Ditolak'),
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
     )
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='verification')
@@ -50,7 +50,7 @@ class Verification(models.Model):
                 "user_id", flat=True,
             ).first()
             if previous_user_id is not None and previous_user_id != self.user_id:
-                raise ValidationError({"user": "Pemilik pengajuan tidak dapat diubah."})
+                raise ValidationError({"user": "The request owner cannot be changed."})
         if self.status == "approved" and self.user_id:
             try:
                 self.user.validate_verification_details()
@@ -102,7 +102,7 @@ class Review(models.Model):
     def clean(self):
         super().clean()
         if self.pemberi_review_id and self.pemberi_review_id == self.penerima_review_id:
-            raise ValidationError("Kamu tidak bisa memberikan review kepada diri sendiri.")
+            raise ValidationError("You cannot review your own account.")
         if self.swap_request_id:
             from swap.models import SwapRequest
 
@@ -115,9 +115,9 @@ class Review(models.Model):
                 and swap_request.sender_id == self.penerima_review_id
             )
             if swap_request.status != SwapRequest.Status.COMPLETED:
-                raise ValidationError({"swap_request": "Review hanya bisa diberikan setelah swap selesai."})
+                raise ValidationError({"swap_request": "A review can only be submitted after the swap is completed."})
             if not participants_match:
-                raise ValidationError({"swap_request": "Review hanya bisa diberikan oleh peserta swap."})
+                raise ValidationError({"swap_request": "Only participants in the swap can submit a review."})
 
     def save(self, *args, **kwargs):
         # Simpan hanya review yang terikat ke swap selesai milik kedua peserta.
@@ -125,4 +125,4 @@ class Review(models.Model):
         return super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"Review dari {self.pemberi_review.username} ke {self.penerima_review.username} ({self.rating}/5)" 
+        return f"Review by {self.pemberi_review.username} for {self.penerima_review.username} ({self.rating}/5)"

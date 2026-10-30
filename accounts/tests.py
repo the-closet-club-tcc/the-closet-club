@@ -1,6 +1,11 @@
-from django.test import TestCase
+import io
+import tempfile
+
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from PIL import Image
 from .models import Verification
 
 User = get_user_model()
@@ -136,7 +141,7 @@ class LoginTests(TestCase):
 
         self.assertRedirects(
             response,
-            reverse("home"),
+            reverse("profile"),
             fetch_redirect_response=False
         )
 
@@ -660,38 +665,41 @@ class ReviewEndpointTests(TestCase):
                 )
         self.assertFalse(self.owner.reviews_received.exists())
 
-    def test_review_get_redirects_to_inline_profile(self):
+    def test_review_get_is_not_allowed(self):
         self.client.force_login(self.visitor)
         response = self.client.get(self.url)
-        self.assertRedirects(
-            response,
-            reverse("public_profile", kwargs={"username": self.owner.username}),
-        )
+        self.assertEqual(response.status_code, 405)
         self.assertFalse(self.owner.reviews_received.exists())
 
-    def test_review_unknown_user_returns_404(self):
+    def test_review_post_for_unknown_user_returns_404(self):
         self.client.force_login(self.visitor)
-        response = self.client.get(
+        response = self.client.post(
             reverse("add_review", kwargs={"username": "missing_review_user"})
         )
         self.assertEqual(response.status_code, 404)
 
-    def test_self_review_get_redirects_to_own_profile(self):
+    def test_self_review_post_redirects_to_own_profile(self):
         self.client.force_login(self.owner)
-        response = self.client.get(self.url)
+        response = self.client.post(self.url, {"rating": "5"})
         self.assertRedirects(response, reverse("profile"))
         self.assertFalse(self.owner.reviews_received.exists())
 
-    def test_review_post_is_blocked_until_integration(self):
+    def test_review_post_requires_completed_swap(self):
         for actor in (self.owner, self.visitor):
             with self.subTest(actor=actor.username):
+                self.client.logout()
                 self.client.force_login(actor)
                 response = self.client.post(self.url, {
                     "rating": "5", "komentar": "Tidak boleh tersimpan.",
                     "pemberi_review": self.owner.pk,
                     "penerima_review": self.visitor.pk,
                 })
-                self.assertEqual(response.status_code, 405)
+                self.assertEqual(response.status_code, 302)
+                expected_url = (
+                    reverse("profile") if actor == self.owner
+                    else reverse("public_profile", kwargs={"username": self.owner.username})
+                )
+                self.assertRedirects(response, expected_url)
         self.assertFalse(self.owner.reviews_received.exists())
         self.assertFalse(self.visitor.reviews_received.exists())
 
@@ -1225,3 +1233,73 @@ class ReviewProfileTests(TestCase):
         response = self.client.get(self.url)
         self.assertContains(response, "&lt;script&gt;")
         self.assertNotContains(response, '<script>alert("review")</script>')
+
+
+class AccountPhotoUploadTests(TestCase):
+    """Uploaded profile photos are accepted by both account forms."""
+
+    def make_photo(self):
+        image_data = io.BytesIO()
+        Image.new("RGB", (1, 1), color="red").save(image_data, format="PNG")
+        return SimpleUploadedFile(
+            "profile.png", image_data.getvalue(), content_type="image/png"
+        )
+
+    def storage_settings(self, media_root):
+        return override_settings(
+            MEDIA_ROOT=media_root,
+            STORAGES={
+                "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+                "staticfiles": {
+                    "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
+                },
+            },
+        )
+
+    def test_register_accepts_profile_photo(self):
+        with tempfile.TemporaryDirectory() as media_root:
+            with self.storage_settings(media_root):
+                response = self.client.post(
+                    reverse("register"),
+                    {
+                        "username": "photo_user",
+                        "email": "photo@example.com",
+                        "password1": "River!Cobalt72#",
+                        "password2": "River!Cobalt72#",
+                        "foto_profil": self.make_photo(),
+                    },
+                )
+
+                self.assertRedirects(
+                    response, reverse("login"), fetch_redirect_response=False
+                )
+                user = User.objects.get(username="photo_user")
+                self.assertTrue(user.foto_profil.name)
+                self.assertTrue(user.foto_profil.storage.exists(user.foto_profil.name))
+
+    def test_edit_profile_accepts_profile_photo(self):
+        user = User.objects.create_user(
+            username="photo_editor",
+            email="editor@example.com",
+            password="EditorPass123!",
+        )
+        self.client.force_login(user)
+
+        with tempfile.TemporaryDirectory() as media_root:
+            with self.storage_settings(media_root):
+                response = self.client.post(
+                    reverse("edit_profile"),
+                    {
+                        "first_name": "Photo",
+                        "last_name": "Editor",
+                        "email": "editor@example.com",
+                        "bio": "Updated with a photo",
+                        "lokasi": "Jakarta",
+                        "foto_profil": self.make_photo(),
+                    },
+                )
+
+                self.assertRedirects(response, reverse("profile"))
+                user.refresh_from_db()
+                self.assertTrue(user.foto_profil.name)
+                self.assertTrue(user.foto_profil.storage.exists(user.foto_profil.name))
