@@ -5,8 +5,8 @@
 {% block title %}My Profile | The Closet Club{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'css/profile.css' %}">
-<link rel="stylesheet" href="{% static 'css/closet.css' %}">
+<link rel="stylesheet" href="/static/css/profile.css">
+<link rel="stylesheet" href="/static/css/closet.css">
 {% endblock %}
 
 {% block content %}
@@ -27,7 +27,7 @@
                 {% if user_profile.foto_profil %}
                     <img
                         src="{{ user_profile.foto_profil.url }}"
-                        alt="Foto profil {{ user_profile.username }}"
+                        alt="Profile photo of {{ user_profile.username }}"
                     >
                 {% else %}
                     <span>
