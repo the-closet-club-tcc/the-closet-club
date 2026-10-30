@@ -310,8 +310,8 @@ Berikut adalah dokumentasi keterbukaan penggunaan kecerdasan buatan (*AI Tool Us
 
 ### 3. Modul 3: My Closet
 - **Nama & NPM**: Nadya Alyssa Azzahra — 2506599270
-- **Tool AI**: ChatGPT / Claude / Gemini
-- **Link Chat**: [Tautan Riwayat Percakapan AI Modul 3](https://chatgpt.com/share/xxxx-link-modul-3)
+- **Tool AI**: Claude
+- **Link Dokumentasi**: [Tautan Riwayat Percakapan AI Modul 3](https://chatgpt.com/share/xxxx-link-modul-3)
 - **Cakupan Penggunaan**:
   - 
 - **Keterbatasan & Penyesuaian Manual**:
