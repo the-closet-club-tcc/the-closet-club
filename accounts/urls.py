@@ -9,6 +9,7 @@ from .views import (
     public_profile,
     request_verification,
     add_review,
+    edit_review,
 )
 
 urlpatterns = [
@@ -21,4 +22,5 @@ urlpatterns = [
     path("user/<str:username>/", public_profile, name="public_profile"),
     path("request-verification/", request_verification, name="request_verification"),
     path("review/<str:username>/", add_review, name="add_review"),
+    path("review/<int:review_id>/edit/", edit_review, name="edit_review"),
 ]

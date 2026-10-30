@@ -591,6 +591,83 @@
     margin-bottom: 20px;
 }
 
+.review-date-filter {
+    display: flex;
+    align-items: end;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 0 0 22px;
+}
+
+.review-date-field label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--tcc-ink);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.review-date-field input {
+    min-height: 42px;
+    padding: 8px 10px;
+    border: 1px solid #d9e0d8;
+    border-radius: 8px;
+    color: var(--tcc-ink);
+    font: inherit;
+}
+
+.review-filter-btn,
+.review-filter-clear {
+    min-height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 16px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--tcc-olive);
+    color: white;
+    font: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.review-filter-clear { background: #eef0eb; color: var(--tcc-ink); }
+.review-filter-error { color: #a14d45; font-size: 13px; }
+
+.review-edit-details { margin-top: 12px; color: var(--tcc-olive); font-size: 13px; }
+.review-edit-details summary { width: fit-content; cursor: pointer; font-weight: 600; }
+.review-edit-form { display: grid; gap: 8px; max-width: 520px; margin-top: 12px; }
+.review-edit-form label { color: var(--tcc-ink); font-weight: 600; }
+.review-edit-form input,
+.review-edit-form textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border: 1px solid #d9e0d8;
+    border-radius: 8px;
+    color: var(--tcc-ink);
+    font: inherit;
+}
+.review-edit-save {
+    justify-self: start;
+    padding: 10px 16px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--tcc-olive);
+    color: white;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+@media (max-width: 600px) {
+    .review-date-filter { align-items: stretch; }
+    .review-date-field { flex: 1 1 100%; }
+    .review-date-field input { width: 100%; box-sizing: border-box; }
+    .review-filter-btn, .review-filter-clear { flex: 1; }
+}
+
 .review-display-rating {
     color: #b89036;
     font-weight: 600;

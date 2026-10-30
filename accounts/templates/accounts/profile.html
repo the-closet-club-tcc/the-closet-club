@@ -273,7 +273,25 @@
             {% endif %}
 
             <!-- review yang sudah ada -->
-            <div class="review-list" id="review-list">
+            <form method="get" action="{{ request.path }}" class="review-date-filter">
+                <div class="review-date-field">
+                    <label for="review-start-date">From</label>
+                    <input type="date" id="review-start-date" name="start_date" value="{{ review_start_date }}">
+                </div>
+                <div class="review-date-field">
+                    <label for="review-end-date">To</label>
+                    <input type="date" id="review-end-date" name="end_date" value="{{ review_end_date }}">
+                </div>
+                <button type="submit" class="review-filter-btn">Filter</button>
+                {% if review_start_date or review_end_date %}
+                    <a href="{{ request.path }}" class="review-filter-clear">Clear</a>
+                {% endif %}
+            </form>
+            {% if review_filter_error %}
+                <p class="review-filter-error" role="alert">{{ review_filter_error }}</p>
+            {% endif %}
+
+            <div class="review-list" id="review-list" data-start-date="{{ review_start_date }}" data-end-date="{{ review_end_date }}">
                 <h3>Community Reviews</h3>
                 {% for review in reviews %}
                     <div class="profile-review-card">
@@ -293,11 +311,28 @@
                         <small>
                             {{ review.tanggal|date:"d F Y" }}
                         </small>
+                        {% if review.can_edit %}
+                            <details class="review-edit-details">
+                                <summary>Edit Review</summary>
+                                <form method="post" action="{% url 'edit_review' review.pk %}" class="review-edit-form">
+                                    {% csrf_token %}
+                                    <label for="review-rating-{{ review.pk }}">Rating (1–5)</label>
+                                    <input id="review-rating-{{ review.pk }}" type="number" name="rating" min="1" max="5" step="1" value="{{ review.rating|floatformat:'0' }}" required>
+                                    <label for="review-comment-{{ review.pk }}">Your Review</label>
+                                    <textarea id="review-comment-{{ review.pk }}" name="komentar" rows="3">{{ review.komentar }}</textarea>
+                                    <button type="submit" class="review-edit-save">Save Changes</button>
+                                </form>
+                            </details>
+                        {% endif %}
                     </div>
                 {% empty %}
 
                     <p class="profile-empty" id="empty-review-message">
-                        No reviews yet.
+                        {% if review_start_date or review_end_date %}
+                            No reviews found for this date range.
+                        {% else %}
+                            No reviews yet.
+                        {% endif %}
                     </p>
                 {% endfor %}
             </div>
