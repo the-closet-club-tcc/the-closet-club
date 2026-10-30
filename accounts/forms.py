@@ -21,7 +21,7 @@ class EditProfileForm(forms.ModelForm):
             for name in ("first_name", "last_name", "email"):
                 self.fields[name].disabled = True
                 self.fields[name].help_text = (
-                    "Data ini dikunci selama akun terverifikasi."
+                    "This information is locked while your account is verified."
                 )
 
     class Meta:
