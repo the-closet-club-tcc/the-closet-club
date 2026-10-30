@@ -83,7 +83,7 @@ class Message(models.Model):
     )    
 
     def preview_text(self):
-        if self.message_type == self.MessgeType.LOCATION:
+        if self.message_type == self.MessageType.LOCATION:
             return f'Location: {self.place_name}'
         if self.message_type == self.MessageType.IMAGE:
             return 'Photo'
