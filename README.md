@@ -310,12 +310,14 @@ Berikut adalah dokumentasi keterbukaan penggunaan kecerdasan buatan (*AI Tool Us
 
 ### 3. Modul 3: My Closet
 - **Nama & NPM**: Nadya Alyssa Azzahra — 2506599270
-- **Tool AI**: ChatGPT / Claude / Gemini
-- **Link Chat**: [Tautan Riwayat Percakapan AI Modul 3](https://chatgpt.com/share/xxxx-link-modul-3)
-- **Cakupan Penggunaan**:
-  - 
-- **Keterbatasan & Penyesuaian Manual**:
-  - 
+- **Tool AI**: Claude
+- **Link Dokumentasi**: [Tautan Riwayat Percakapan AI Modul 3](https://docs.google.com/document/d/1mZa4PaDx5TfyHB2n7qY_eE6lvQrc2z5v7-Z43eX5w7M/edit?usp=sharing)
+
+Dalam mengerjakan modul My Closet, saya menggunakan AI yaitu Claude sebagai alat bantu untuk memahami requirements dan hubungan modul saya dengan modul lain, mengarahkan pembuatan kode, mencari penyebab bug, menentukan bagian mana yang perlu diubah, dan menjelaskan perintah Git.
+
+Claude tidak selalu benar. Salah satu contohnya, ketika saya memintanya memeriksa apakah kode sudah sesuai requirements, ia justru menambahkan aturan yang tidak ada di dokumen. Selain itu, ia juga menambahkan fitur di luar cakupan modul saya. Oleh karena itu, saya selalu memeriksa jawabannya dulu sebelum diterapkan. Pada kasus tadi, saya memutuskan sendiri untuk tidak mengikuti aturan tambahan tersebut dan membatasi pekerjaan saya pada cakupan modul.
+
+Untuk memastikan hasilnya benar, saya menjalankan aplikasi di lingkungan lokal, mencoba alurnya di browser, memeriksa error yang muncul, dan menjalankan test sebelum melakukan commit. Setiap kali ada yang tidak sesuai, misalnya template yang tidak ditemukan atau tombol yang berperilaku salah, saya menelusurinya dan memperbaikinya. Keputusan akhir mengenai kode, pembagian tanggung jawab dengan anggota tim lain, dan apa yang dikirim ke repository tetap saya yang menentukan, dan saya bertanggung jawab atas seluruh hasil pekerjaan modul ini.
 
 ---
 
