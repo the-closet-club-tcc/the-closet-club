@@ -1,14 +1,14 @@
-/* chat.js: perilaku halaman chat. */
+/* chat.js: chat page behavior. */
 (function () {
   const toast = (msg, kind) => window.showToast(msg, kind);
 
-  /* Notifikasi setelah redirect (?deleted=1, ?blocked=1, dll.) */
+  /* Notifications after redirect (?deleted=1, ?blocked=1, etc.) */
   const NOTICES = {
-    deleted: ['Percakapan dihapus', 'success'],
-    blocked: ['Pengguna diblokir', 'success'],
-    unblocked: ['Blokir dibuka', 'success'],
-    accepted: ['Percakapan diterima', 'success'],
-    cannot_start: ['Tidak dapat memulai percakapan dengan pengguna ini.', 'error'],
+    deleted: ['Conversation deleted', 'success'],
+    blocked: ['User blocked', 'success'],
+    unblocked: ['User unblocked', 'success'],
+    accepted: ['Conversation accepted', 'success'],
+    cannot_start: ['Cannot start conversation with this user.', 'error'],
   };
 
   const params = new URLSearchParams(window.location.search);
@@ -27,7 +27,7 @@
     history.replaceState(null, '', window.location.pathname + (rest ? '?' + rest : ''));
   }
 
-  /* Pencarian percakapan */
+  /* Conversation search */
   function applyConvFilter() {
     const input = document.getElementById('conv-search');
     const list = document.getElementById('conv-list');
@@ -45,7 +45,7 @@
 
       item.classList.toggle('conv-hidden', !match);
 
-      // Inline !important menghindari konflik dengan utility Tailwind.
+      // Inline !important avoids conflict with Tailwind utilities.
       if (match) {
         item.style.removeProperty('display');
       } else {
@@ -68,7 +68,7 @@
     }
   }
 
-  // Event delegated agar tetap bekerja jika elemen diganti.
+  // Delegated event so it keeps working if elements are swapped.
   document.addEventListener('input', (event) => {
     if (event.target.id === 'conv-search') {
       applyConvFilter();
@@ -81,7 +81,7 @@
     }
   });
 
-  // Terapkan ulang setelah HTMX mengganti daftar percakapan.
+  // Re-apply after HTMX swaps the conversation list.
   document.body.addEventListener('htmx:afterSwap', (event) => {
     if (
       event.target.id === 'conv-list' ||
@@ -99,7 +99,7 @@
     applyConvFilter();
   }
 
-  /* Penanganan error request HTMX (polling GET diabaikan) */
+  /* HTMX request error handling (GET polling ignored) */
   document.body.addEventListener('htmx:responseError', (e) => {
     const { xhr, requestConfig } = e.detail;
 
@@ -109,16 +109,16 @@
     const plain = text && !text.startsWith('<');
 
     if (xhr.status === 413) {
-      toast('File terlalu besar untuk server.', 'error');
+      toast('File too large for server.', 'error');
     } else if (xhr.status === 403) {
       toast(
-        plain ? text.slice(0, 200) : 'Kamu tidak punya izin untuk aksi ini.',
+        plain ? text.slice(0, 200) : 'You do not have permission for this action.',
         'error'
       );
     } else if (xhr.status === 400 && plain) {
       toast(text.slice(0, 200), 'error');
     } else {
-      toast(`Terjadi kesalahan (kode ${xhr.status}).`, 'error');
+      toast(`An error occurred (code ${xhr.status}).`, 'error');
     }
   });
 
@@ -127,14 +127,14 @@
 
     if (cfg && cfg.verb === 'get') return;
 
-    toast('Koneksi bermasalah. Coba lagi.', 'error');
+    toast('Connection error. Please try again.', 'error');
   });
 
-  /* ---- Bagian berikut hanya untuk halaman dengan chat room terbuka ---- */
+  /* ---- The following section is only for pages with an open chat room ---- */
   const box = document.getElementById('messages');
   const form = document.getElementById('message-form');
 
-  // Tidak ada chat room yang terbuka.
+  // No open chat room.
   if (!box) return;
 
   let stick = true;
@@ -143,7 +143,7 @@
     box.scrollTop = box.scrollHeight;
   };
 
-  /* Scroll otomatis ke pesan terbaru */
+  /* Automatically scroll to latest message */
   toBottom();
 
   window.addEventListener('load', () => setTimeout(toBottom, 100));
@@ -173,8 +173,8 @@
     if (e.target.closest('.quick-chip')) stick = true;
   });
 
-  /* Kolom pesan: Enter kirim, Shift+Enter baris baru,
-     tinggi otomatis, hitungan karakter */
+  /* Message input: Enter to send, Shift+Enter for new line,
+     auto height, character counter */
   const msgInput = form ? form.querySelector('textarea[name="content"]') : null;
   const counter = document.getElementById('char-count');
 
@@ -187,7 +187,7 @@
       if (counter) {
         const left = msgInput.maxLength - msgInput.value.length;
         counter.hidden = left > 200;
-        counter.textContent = left + ' karakter tersisa';
+        counter.textContent = left + ' characters remaining';
       }
     };
 
@@ -206,7 +206,7 @@
     grow();
   }
 
-  /* Balas pesan tertentu */
+  /* Reply to specific message */
   const replyInput = document.getElementById('reply-to-input');
   const replyChip = document.getElementById('reply-chip');
   const replyWho = document.getElementById('reply-who');
@@ -254,7 +254,7 @@
     }
   });
 
-  /* Banner keselamatan: bisa ditutup, diingat per percakapan */
+  /* Safety banner: dismissible, remembered per conversation */
   const safety = document.getElementById('safety-banner');
 
   if (safety) {
@@ -265,7 +265,7 @@
         safety.classList.add('is-gone');
       }
     } catch (err) {
-      /* Penyimpanan browser dimatikan: banner tetap tampil */
+      /* Browser storage disabled: banner remains visible */
     }
 
     const dismiss = document.getElementById('safety-dismiss');
@@ -277,13 +277,13 @@
         try {
           localStorage.setItem(key, '1');
         } catch (err) {
-          /* Abaikan */
+          /* Ignore */
         }
       });
     }
   }
 
-  /* Menu titik tiga di header: tutup setelah satu pilihan diklik */
+  /* Header options menu: close after selecting an option */
   const roomMenu = document.getElementById('room-menu');
 
   if (roomMenu) {
@@ -292,7 +292,7 @@
     });
   }
 
-  /* Modal laporan: satu modal dipakai untuk laporan pengguna dan laporan pesan */
+  /* Report modal: single modal used for both user reports and message reports */
   const reportModal = document.getElementById('report-modal');
   const reportForm = document.getElementById('report-form');
 
@@ -308,8 +308,8 @@
       reportMsgId.value = btn.dataset.reportMessage || '';
 
       reportTarget.textContent = btn.dataset.reportLabel
-        ? `Melaporkan pesan: "${btn.dataset.reportLabel}"`
-        : `Melaporkan ${reportModal.dataset.user || 'pengguna'}`;
+        ? `Reporting message: "${btn.dataset.reportLabel}"`
+        : `Reporting ${reportModal.dataset.user || 'user'}`;
 
       reportModal.showPopover();
     });
@@ -323,11 +323,11 @@
         reportModal.hidePopover();
       }
 
-      toast('Laporan terkirim. Terima kasih.');
+      toast('Report sent. Thank you.');
     });
   }
 
-  /* Menu lampiran: tutup setelah satu pilihan diklik */
+  /* Attachment menu: close after selecting an option */
   const attachMenu = document.getElementById('attach-menu');
 
   if (attachMenu) {
@@ -336,7 +336,7 @@
     });
   }
 
-  /* Lampiran: foto, kamera, dokumen */
+  /* Attachments: photo, camera, document */
   const attachForm = document.getElementById('attach-form');
   const attachInput = document.getElementById('attach-input');
 
@@ -354,7 +354,7 @@
         b.disabled = on;
       });
 
-      if (statusName) statusName.textContent = on ? `Mengunggah ${name}...` : '';
+      if (statusName) statusName.textContent = on ? `Uploading ${name}...` : '';
       if (statusPct) statusPct.textContent = '0%';
       if (statusBar) statusBar.style.width = '0%';
     };
@@ -394,7 +394,7 @@
         e.preventDefault();
 
         toast(
-          `File terlalu besar. Maksimal ${Math.round(limit / 1048576)} MB.`,
+          `File is too large. Maximum size is ${Math.round(limit / 1048576)} MB.`,
           'error'
         );
 
@@ -417,13 +417,13 @@
     attachForm.addEventListener('htmx:afterRequest', (e) => {
       setUploading(false);
 
-      if (e.detail.successful) toast('Berkas terkirim');
+      if (e.detail.successful) toast('File sent');
     });
 
     attachForm.addEventListener('htmx:sendError', () => setUploading(false));
   }
 
-  /* Modal konfirmasi hapus pesan: satu modal dipakai untuk semua pesan */
+  /* Delete message confirmation modal: single modal used for all messages */
   const modal = document.getElementById('confirm-modal');
   const okBtn = document.getElementById('confirm-modal-ok');
 
@@ -441,7 +441,7 @@
     okBtn.addEventListener('htmx:afterRequest', (e) => {
       if (modal.matches(':popover-open')) modal.hidePopover();
 
-      if (e.detail.successful) toast('Pesan dihapus');
+      if (e.detail.successful) toast('Message deleted');
     });
   }
 })();

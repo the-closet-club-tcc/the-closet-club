@@ -44,17 +44,11 @@
 }
 
 .swap-filters {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
     gap: 8px;
     margin-bottom: 24px;
 }
 
 .swap-navigation {
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
     gap: 24px;
     margin-bottom: 24px;
 }
@@ -99,9 +93,7 @@
 }
 
 .swap-saved-grid {
-    display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 310px));
-    justify-content: center;
     gap: 24px;
 }
 
@@ -882,12 +874,6 @@
     font-size: 12px;
 }
 
-.swap-request-pair {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 24px;
-}
-
 .swap-request-piece {
     display: flex;
     align-items: center;
@@ -1068,11 +1054,6 @@
 
     .swap-request-card {
         padding: 20px;
-    }
-
-    .swap-request-pair {
-        grid-template-columns: 1fr;
-        gap: 20px;
     }
 
     .swap-page {

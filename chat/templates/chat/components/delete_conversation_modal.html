@@ -2,18 +2,18 @@
      aria-modal="true" aria-labelledby="delete-conv-modal-title">
   <button type="button" class="chat-modal__backdrop"
           popovertarget="delete-conv-modal" popovertargetaction="hide"
-          aria-label="Tutup konfirmasi"></button>
+          aria-label="Close confirmation"></button>
   <div class="chat-modal__content">
     <button type="button" class="chat-modal__close"
             popovertarget="delete-conv-modal" popovertargetaction="hide"
-            aria-label="Tutup konfirmasi">×</button>
-    <h2 id="delete-conv-modal-title">Hapus percakapan?</h2>
-    <p>Percakapan dengan {{ other_user.username }} dihapus dari daftarmu saja. {{ other_user.username }} tetap melihatnya di sisinya, dan percakapan muncul lagi kalau ada pesan baru (hanya pesan baru yang terlihat).</p>
+            aria-label="Close confirmation">×</button>
+    <h2 id="delete-conv-modal-title">Delete conversation?</h2>
+    <p>The conversation with {{ other_user.username }} will be deleted from your list only. {{ other_user.username }} will still see it on their end, and the conversation will reappear if new messages are sent (only new messages will be visible).</p>
     <form method="post" action="{% url 'chat:delete_conversation' active.id %}" class="chat-modal__actions">
       {% csrf_token %}
       <button type="button" class="btn btn-secondary"
-              popovertarget="delete-conv-modal" popovertargetaction="hide">Batal</button>
-      <button class="btn btn-danger">Ya, hapus</button>
+              popovertarget="delete-conv-modal" popovertargetaction="hide">Cancel</button>
+      <button class="btn btn-danger">Yes, delete</button>
     </form>
   </div>
 </div>

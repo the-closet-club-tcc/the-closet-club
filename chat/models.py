@@ -44,11 +44,11 @@ class Conversation(models.Model):
 
 class Message(models.Model):
     class MessageType(models.TextChoices):
-        TEXT = 'text', 'Teks'
-        LOCATION = 'location', 'Lokasi'
-        IMAGE = 'image', 'Foto'
-        FILE = 'file', 'Dokumen'
-        SWAP = 'swap', 'Permintaan swap'        
+        TEXT = 'text', 'Text'
+        LOCATION = 'location', 'Location'
+        IMAGE = 'image', 'Photo'
+        FILE = 'file', 'Document'
+        SWAP = 'swap', 'Swap request'       
 
     conversation = models.ForeignKey(
         Conversation, on_delete=models.CASCADE, related_name='messages',
@@ -84,14 +84,14 @@ class Message(models.Model):
 
     def preview_text(self):
         if self.message_type == self.MessageType.LOCATION:
-            return f'Lokasi: {self.place_name}'
+            return f'Location: {self.place_name}'
         if self.message_type == self.MessageType.IMAGE:
-            return 'Foto'
+            return 'Photo'
         if self.message_type == self.MessageType.FILE:
-            return f'Dokumen: {self.attachment_name}'
+            return f'Document: {self.attachment_name}'
         if self.message_type == self.MessageType.SWAP:
-            return 'Permintaan swap'        
-        return self.content    
+            return 'Swap request'        
+        return self.content
 
     class Meta:
         ordering = ['created_at']
@@ -127,16 +127,16 @@ class Block(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.blocker} memblokir {self.blocked}'
+        return f'{self.blocker} blocked {self.blocked}'
 
 
 class Report(models.Model):
     class Reason(models.TextChoices):
-        SPAM = 'spam', 'Spam atau promosi'
-        SCAM = 'penipuan', 'Penipuan'
-        HARASSMENT = 'pelecehan', 'Pelecehan atau kata-kata kasar'
-        INAPPROPRIATE = 'tidak_pantas', 'Konten tidak pantas'
-        OTHER = 'lainnya', 'Lainnya'
+        SPAM = 'spam', 'Spam or promotion'
+        SCAM = 'penipuan', 'Scam'
+        HARASSMENT = 'pelecehan', 'Harassment or offensive language'
+        INAPPROPRIATE = 'tidak_pantas', 'Inappropriate content'
+        OTHER = 'lainnya', 'Other'
 
     reporter = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='reports_made',
@@ -157,4 +157,4 @@ class Report(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f'{self.reporter} melaporkan {self.reported_user} ({self.reason})'
+        return f'{self.reporter} reported {self.reported_user} ({self.reason})'

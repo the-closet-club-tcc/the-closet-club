@@ -2,7 +2,7 @@
 {% for p in results %}
 <form hx-post="{% url 'chat:send_location' conversation.id %}"
       hx-target="#messages" hx-swap="innerHTML"
-      hx-on::after-request="if (event.detail.successful) { const m = document.getElementById('location-modal'); if (m.matches(':popover-open')) m.hidePopover(); document.getElementById('place-results').innerHTML = ''; showToast('Lokasi terkirim'); }"
+      hx-on::after-request="if (event.detail.successful) { const m = document.getElementById('location-modal'); if (m.matches(':popover-open')) m.hidePopover(); document.getElementById('place-results').innerHTML = ''; showToast('Location sent'); }"
       class="flex items-center justify-between gap-3 rounded-lg bg-white p-3 text-sm">
   <div class="min-w-0">
     <p class="truncate font-semibold">{{ p.name }}</p>
@@ -12,8 +12,8 @@
   <input type="hidden" name="address" value="{{ p.address }}">
   <input type="hidden" name="lat" value="{{ p.lat|unlocalize }}">
   <input type="hidden" name="lon" value="{{ p.lon|unlocalize }}">
-  <button class="btn btn-primary shrink-0">Kirim</button>
+  <button class="btn btn-primary shrink-0">Send</button>
 </form>
 {% empty %}
-  {% if searched %}<p class="text-sm text-gray-500">Tempat tidak ditemukan</p>{% endif %}
+  {% if searched %}<p class="text-sm text-gray-500">Place not found</p>{% endif %}
 {% endfor %}

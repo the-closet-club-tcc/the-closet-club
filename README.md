@@ -134,7 +134,10 @@ Interaksi pesan langsung antarpengguna untuk bernegosiasi sebelum pertukaran dis
 
 ### Alur Pengajuan Swap / Barter
 Antarmuka pemilihan barang yang ditawarkan dan pelacakan status kesepakatan tukar.
-![Alur Swap](docs/screenshots/swap.png)
+![Discover](./docs/screenshots/swap-discover.png)
+![Interested Items](./docs/screenshots/swap-interested_items.png)
+![Requests Incoming](./docs/screenshots/swap-requests_incoming.png)
+![Requests Outgoing](./docs/screenshots/swap-requests_outgoing.png)
 
 ### Profil Pengguna & Ulasan Reputasi
 Halaman profil yang menampilkan badge terverifikasi dan kalkulasi bintang ulasan.
@@ -304,11 +307,14 @@ Berikut adalah dokumentasi keterbukaan penggunaan kecerdasan buatan (*AI Tool Us
 ### 2. Modul 2: Feed & Clothing Post
 - **Nama & NPM**: Nauval Adiva Daneshwara — 2506623074
 - **Tool AI**: ChatGPT / Claude / Gemini
-- **Link Chat**: [Tautan Riwayat Percakapan AI Modul 2](tulis linknya disini)
+- **Link Chat**: [Tautan Claude](https://claude.ai/share/52342f5d-99b8-41d1-8616-3bbb43f87aa7)
 - **Cakupan Penggunaan**:
-  - 
+  - untuk debugging errors atau kebingungan yang saya temukan selama coding website ini
+  - memberi ide hero banner karna saya sudah pusing.
+  - Saya juga meminta Claude AI untuk memberikan saran fitur tambahan ataupun bagian mana yang bisa saya improve untuk membuat modul website nya lebih baik.
 - **Keterbatasan & Penyesuaian Manual**:
-  - 
+  - AI tentunya tidak tau context lengkap apa yang sedang kita kerjakan, lalu ia juga tidak bisa melihat apa yang sudah diupdate oleh teman kita. Disitulah kita harus melihatnya sendiri serta menyesuaikan coding kita dengan bagaimana teman teman kita bekerja.
+  - AI juga suka memberikan baris code yang tidak sesuai dengan struktur projek nya.
 
 ---
 
@@ -326,20 +332,44 @@ Untuk memastikan hasilnya benar, saya menjalankan aplikasi di lingkungan lokal, 
 ---
 
 ### 4. Modul 4: Chat
+
 - **Nama & NPM**: Faiz Yusuf Elriki — 2506607921
-- **Tool AI**: ChatGPT / Claude / Gemini
-- **Link Chat**: [Tautan Riwayat Percakapan AI Modul 4](https://chatgpt.com/share/xxxx-link-modul-4)
+- **Tool AI**: ChatGPT, Claude, Gemini
+- **Link Chat**:
+  - https://chatgpt.com/share/6ae4b85d-71a0-83ec-8201-7b411ad53d4f
+  - https://claude.ai/share/52c3a659-eb7d-4214-af0f-86780327effa
+  - https://share.gemini.google/Fguv2BkPKlKR
+
+Dalam mengerjakan modul Chat, saya memanfaatkan AI (seperti ChatGPT, Claude, dan Gemini) sebagai alat bantu diskusi teknis untuk memahami kebutuhan sistem, mempelajari integrasi HTMX polling, pemrosesan media, integrasi API publik OpenStreetMap Nominatim, serta membantu memahami perintah Git saat menemui kendala.
+
+AI tidak selalu memberikan jawaban yang akurat. Salah satu contohnya, ketika saya berkonsultasi mengenai sinkronisasi kartu transaksi Swap di dalam ruang obrolan, AI berulang kali memberikan solusi yang membuat kartu terduplikasi setiap kali polling HTMX berjalan, serta menyarankan pendekatan arsitektur yang terlalu kompleks di luar kebutuhan proyek. Oleh karena itu, saya selalu mengevaluasi setiap saran sebelum menerapkannya. Saya memutuskan untuk tidak menggunakan saran kompleks tersebut dan menyempurnakan logikanya secara mandiri menggunakan get_or_create serta pembungkusan transaksi atomik agar kode tetap bersih dan efisien.
+
+Untuk memastikan hasilnya sesuai, saya menguji seluruh fungsionalitas di lingkungan lokal, mencoba alur percakapan dan pengiriman berkas langsung di peramban, memeriksa log error yang muncul, serta menjalankan unit test (python manage.py test) sebelum melakukan commit. Setiap kali menemukan kendala, seperti typo pada atribut model, kegagalan kompresi gambar, atau respons HTMX yang bermasalah—saya menelusurinya dan memperbaikinya secara mandiri. Keputusan akhir mengenai kode, integrasi fitur, dan berkas yang dikirim ke repositori tetap saya yang menentukan, dan saya bertanggung jawab penuh atas seluruh hasil pengerjaan modul ini.
+
 - **Cakupan Penggunaan**:
-  - 
+  - **Arsitektur & Skema Database**: Berdiskusi mengenai perancangan model Django (`Conversation`, `Message`, `Attachment`, `Block`, dan `Report`) serta penentuan relasi antar-model.
+  - **Eksplorasi Interaktivitas UI**: Mempelajari konsep penerapan HTMX polling, *partial swap*, *auto-scroll*, *quick replies*, dan fitur balasan pesan (*reply-to*).
+  - **Logika Pengolahan Gambar & Berkas**: Mendapat panduan mengenai validasi MIME type, kompresi/normalisasi gambar otomatis menggunakan Pillow (`ImageOps` ke format JPEG max 1280px), serta pembatasan ukuran berkas.
+  - **Integrasi API OpenStreetMap**: Berdiskusi tentang mekanisme pencarian lokasi titik temu via Nominatim dan penggunaan *caching* MD5 (`django.core.cache`).
+  - **Refactoring & Penerjemahan (i18n)**: Meminta bantuan dalam memeriksa dan menerjemahkan seluruh antarmuka UI, skrip JavaScript, pesan kesalahan, enum pilihan, serta pengujian unit dari Bahasa Indonesia ke Bahasa Inggris.
+  - **Konsep Unit Testing**: Mempelajari penyusunan *suite unit test* pada `tests.py` untuk menguji otorisasi peserta, pembatasan berkas, blokir/laporan, dan batas pesan.
+
 - **Keterbatasan & Penyesuaian Manual**:
-  - 
+  - **Penulisan Kode & Implementasi Mandiri**: Seluruh penulisan kode logika bisnis, perbaikan *bug*, serta eksekusi migrasi database dilakukan secara mandiri di komputer lokal.
+  - **Penanganan State & Duplikasi Kartu Swap**: Solusi awal dari AI sering memicu duplikasi kartu transaksi *Swap Request* saat polling HTMX berjalan. Hal ini diperbaiki secara manual pada fungsi `sync_swap_cards` dan `sync_swap_conversations`.
+  - **Manajemen Memori & Transaksi Atomik**: Kode bawaan AI untuk pengolahan gambar kurang efisien dalam penggunaan memori. Pembenahan dilakukan secara mandiri menggunakan `io.BytesIO` dan pembungkusan transaksi atomik (`transaction.atomic`).
+  - **Otorisasi & Proteksi Akses**: Penanganan *edge cases* seperti pemblokiran interaksi antar pengguna (*blocked pair*) dan penanganan error 404 untuk non-peserta disempurnakan secara manual untuk menjamin keamanan data.
+  - **Pemeriksaan Konsistensi & Typo**: Memeriksa ulang secara manual seluruh hasil penerjemahan istilah UI dan membetulkan kesalahan penulisan (*typo*) pada kode (seperti perbaikan penulisan nama atribut pada model) agar aplikasi berjalan lancar.
 
 ---
 
 ### 5. Modul 5: Swap / Barter & Integrasi API
 - **Nama & NPM**: Naila Husna Teguh Suasono — 2506620444
-- **Tool AI**: ChatGPT / Claude / Gemini
-- **Link Chat**: [Tautan Riwayat Percakapan AI Modul 5](https://chatgpt.com/share/xxxx-link-modul-5)
+- **Tool AI**: ChatGPT
+- **Link Chat**: 
+   - https://chatgpt.com/share/6ae48f05-20e0-83ec-96f7-c08b04e9680e
+   - https://chatgpt.com/share/6ae48f69-8dc0-83ec-ad67-40ae68942ce5
+   - https://chatgpt.com/share/6ae4a054-4a0c-83ec-8542-84ff7ca28c44
 - **Cakupan Penggunaan**:
   - 
 - **Keterbatasan & Penyesuaian Manual**:

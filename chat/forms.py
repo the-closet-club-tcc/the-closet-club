@@ -12,12 +12,12 @@ class ReportForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['reason'].error_messages['required'] = 'Pilih alasan laporan.'
-        self.fields['reason'].error_messages['invalid_choice'] = 'Pilih alasan laporan.'
-        self.fields['detail'].error_messages['max_length'] = 'Keterangan maksimal 500 karakter.'
+        self.fields['reason'].error_messages['required'] = 'Select a report reason.'
+        self.fields['reason'].error_messages['invalid_choice'] = 'Select a report reason.'
+        self.fields['detail'].error_messages['max_length'] = 'Description must be 500 characters or fewer.'
 
     def clean(self):
         cleaned = super().clean()
         if cleaned.get('reason') == Report.Reason.OTHER and not cleaned.get('detail'):
-            self.add_error('detail', 'Jelaskan laporanmu pada kolom keterangan.')
+            self.add_error('detail', 'Please explain your report in the detail field.')
         return cleaned

@@ -4,7 +4,7 @@
 {% block title %}Interested items | The Closet Club{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'css/swap.css' %}?v=21">
+{% include 'swap/_styles.html' %}
 {% endblock %}
 
 {% block content %}
@@ -18,7 +18,7 @@
         {% include 'swap/_navigation.html' with active='interested' %}
 
         {% if interests %}
-        <div class="swap-saved-grid">
+        <div class="swap-saved-grid sw-grid sw-justify-center">
             {% for interest in interests %}
             <article class="swap-saved-card"
                 {% if interest.available %}

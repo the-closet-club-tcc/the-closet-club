@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
-{% block title %}Pesan | The Closet Club{% endblock %}
+{% block title %}Messages | The Closet Club{% endblock %}
 
 {% block extra_head %}
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
@@ -40,17 +40,17 @@
   <!-- Kiri: daftar percakapan -->
   <aside class="{% if active %}hidden md:flex{% else %}flex{% endif %} w-full shrink-0 flex-col border-r border-[#E8E0D0] md:w-80">
     <div class="flex items-center justify-between gap-2 px-5 pb-3 pt-5">
-      <h1 class="font-serif text-3xl font-normal leading-none">Pesan
+      <h1 class="font-serif text-3xl font-normal leading-none">Messages
         <span class="ml-1 align-middle rounded-full bg-[#EFE5D8] px-2 py-0.5 font-sans text-xs font-semibold">{{ conversations|length }}</span>
       </h1>
       <button type="button" popovertarget="new-chat-modal"
               hx-get="{% url 'chat:user_search' %}" hx-target="#user-results" hx-swap="innerHTML"
-              class="rounded-full bg-[#344536] px-3 py-1.5 text-sm text-white"><i class="bi bi-plus-lg"></i> Baru</button>
+              class="rounded-full bg-[#344536] px-3 py-1.5 text-sm text-white"><i class="bi bi-plus-lg"></i> New</button>
     </div>
     <div class="px-5 pb-3">
       <label class="relative block">
         <i class="bi bi-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
-        <input id="conv-search" type="search" placeholder="Cari percakapan" autocomplete="off"
+        <input id="conv-search" type="search" placeholder="Search conversations" autocomplete="off"
                class="w-full rounded-xl border border-[#E8E0D0] bg-white py-2 pl-9 pr-3 text-base md:text-sm">
       </label>
     </div>
@@ -66,41 +66,41 @@
   <section id="chat-panel" class="{% if active %}flex{% else %}hidden md:flex{% endif %} min-w-0 flex-1 flex-col bg-[#F8F3E9]">
     {% if active %}
       <header class="flex items-center gap-3 border-b border-[#E8E0D0] bg-white px-4 py-3 md:px-6">
-        <a href="{% url 'chat:index' %}" class="md:hidden" aria-label="Kembali ke daftar pesan">
+        <a href="{% url 'chat:index' %}" class="md:hidden" aria-label="Back to message list">
           <i class="bi bi-arrow-left text-xl"></i>
         </a>
-        <a href="{% url 'public_profile' other_user.username %}" class="shrink-0" aria-label="Lihat profil {{ other_user.username }}">
+        <a href="{% url 'public_profile' other_user.username %}" class="shrink-0" aria-label="View profile of {{ other_user.username }}">
           {% include 'chat/components/avatar.html' with person=other_user size=48 %}
         </a>        
         <div class="min-w-0 flex-1">
           <p class="flex items-center gap-1.5 font-semibold">
             <a href="{% url 'public_profile' other_user.username %}" class="truncate hover:underline">{{ other_user.username }}</a>
-            {% if other_user.is_verified %}<i class="bi bi-patch-check-fill text-[#344536]" title="Terverifikasi"></i>{% endif %}
+            {% if other_user.is_verified %}<i class="bi bi-patch-check-fill text-[#344536]" title="Verified"></i>{% endif %}
           </p>
           <p class="text-xs text-gray-500">
             {% with n=other_user.reviews_received.count %}
-              {% if n %}<i class="bi bi-star-fill text-[#B8863B]"></i> {{ other_user.get_rata_rata_rating }} · {{ n }} ulasan{% else %}Belum ada ulasan{% endif %}
+              {% if n %}<i class="bi bi-star-fill text-[#B8863B]"></i> {{ other_user.get_rata_rata_rating }} · {{ n }} reviews{% else %}No reviews yet{% endif %}
             {% endwith %}
           </p>
         </div>
         <div class="flex shrink-0 items-center gap-2">
           <a href="{% url 'closet:user_closet' other_user.username %}"
-            class="rounded-lg border border-[#344536] px-3 py-2 text-xs text-[#344536] sm:text-sm">Lihat Closet</a>
+            class="rounded-lg border border-[#344536] px-3 py-2 text-xs text-[#344536] sm:text-sm">View Closet</a>
           <a href="{% url 'swap:index' %}"
-             class="rounded-lg bg-[#344536] px-3 py-2 text-xs text-white sm:text-sm">Ajukan Swap</a>
+             class="rounded-lg bg-[#344536] px-3 py-2 text-xs text-white sm:text-sm">Propose Swap</a>
           <details id="room-menu" class="relative">
-            <summary class="icon-btn" aria-label="Menu percakapan" title="Menu percakapan"><i class="bi bi-three-dots-vertical"></i></summary>
+            <summary class="icon-btn" aria-label="Conversation menu" title="Conversation menu"><i class="bi bi-three-dots-vertical"></i></summary>
             <div class="absolute right-0 top-12 z-20 w-56 rounded-xl border border-[#E8E0D0] bg-white p-1 shadow-lg">
-              <button type="button" class="menu-item" data-report-message="" data-report-label=""><i class="bi bi-flag"></i> Laporkan pengguna</button>
+              <button type="button" class="menu-item" data-report-message="" data-report-label=""><i class="bi bi-flag"></i> Report user</button>
               {% if blocked_by_me %}
               <form method="post" action="{% url 'chat:unblock' active.id %}">
                 {% csrf_token %}
-                <button class="menu-item"><i class="bi bi-slash-circle"></i> Buka blokir</button>
+                <button class="menu-item"><i class="bi bi-slash-circle"></i> Unblock</button>
               </form>
               {% else %}
-              <button type="button" class="menu-item" popovertarget="block-modal"><i class="bi bi-slash-circle"></i> Blokir pengguna</button>
+              <button type="button" class="menu-item" popovertarget="block-modal"><i class="bi bi-slash-circle"></i> Block user</button>
               {% endif %}
-              <button type="button" class="menu-item text-red-700" popovertarget="delete-conv-modal"><i class="bi bi-trash3"></i> Hapus percakapan</button>
+              <button type="button" class="menu-item text-red-700" popovertarget="delete-conv-modal"><i class="bi bi-trash3"></i> Delete conversation</button>
             </div>
           </details>
         </div>
@@ -108,14 +108,14 @@
 
       {% if is_request %}
       <div class="flex flex-wrap items-center gap-3 border-b border-[#E8E0D0] bg-white px-4 py-3 text-sm md:px-6">
-        <p class="min-w-0 flex-1"><strong>{{ other_user.username }}</strong> baru menghubungimu. Membalas pesan akan menerima percakapan ini.</p>
+        <p class="min-w-0 flex-1"><strong>{{ other_user.username }}</strong> just reached out to you. Replying to a message will accept this conversation.</p>
         <div class="flex shrink-0 gap-2">
           <form method="post" action="{% url 'chat:accept' active.id %}">
             {% csrf_token %}
-            <button class="btn btn-primary">Terima</button>
+            <button class="btn btn-primary">Accept</button>
           </form>
-          <button type="button" class="btn btn-secondary" popovertarget="block-modal">Blokir</button>
-          <button type="button" class="btn btn-secondary" data-report-message="" data-report-label="">Laporkan</button>
+          <button type="button" class="btn btn-secondary" popovertarget="block-modal">Block</button>
+          <button type="button" class="btn btn-secondary" data-report-message="" data-report-label="">Report</button>
         </div>
       </div>
       {% endif %}
@@ -127,7 +127,7 @@
         </div>
         <div class="min-w-0 flex-1">
           <p class="text-[10px] uppercase tracking-widest text-gray-500">
-            Item yang dibicarakan
+            Item being discussed
           </p>
           <p class="truncate font-semibold">{{ active.item_name }}</p>
         </div>
@@ -137,8 +137,8 @@
       <div id="safety-banner" data-conv="{{ active.id }}"
            class="flex items-start gap-2 bg-[#EFE5D8] px-4 py-2 text-xs text-[#4b4b42] md:px-6">
         <i class="bi bi-shield-check mt-0.5 text-[#344536]"></i>
-        <p class="min-w-0 flex-1">Bertemu di tempat umum, jangan transfer sebelum barang diterima.</p>
-        <button type="button" id="safety-dismiss" aria-label="Tutup pengingat"><i class="bi bi-x-lg"></i></button>
+        <p class="min-w-0 flex-1">Meet in public places, do not transfer funds before receiving items.</p>
+        <button type="button" id="safety-dismiss" aria-label="Dismiss safety notice"><i class="bi bi-x-lg"></i></button>
       </div>
 
       <div id="messages" class="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 md:px-6"
@@ -169,19 +169,19 @@
 
       {% if blocked_by_me %}
       <div class="border-t border-[#E8E0D0] bg-white p-4 text-center text-sm">
-        <p class="text-gray-600">Kamu memblokir {{ other_user.username }}. Buka blokir untuk mengirim pesan.</p>
+        <p class="text-gray-600">You blocked {{ other_user.username }}. Unblock to send a message.</p>
         <form method="post" action="{% url 'chat:unblock' active.id %}" class="mt-2">
           {% csrf_token %}
-          <button class="btn btn-secondary">Buka blokir</button>
+          <button class="btn btn-secondary">Unblock</button>
         </form>
       </div>
       {% elif blocked_me %}
       <div class="border-t border-[#E8E0D0] bg-white p-4 text-center text-sm text-gray-600">
-        Kamu tidak dapat mengirim pesan di percakapan ini.
+        You cannot send messages in this conversation.
       </div>
       {% else %}
       <div class="border-t border-[#E8E0D0] bg-white p-3 md:p-4">
-        <div class="mb-2 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Balasan cepat">
+        <div class="mb-2 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Quick replies">
           {% for text in quick_replies %}
           <button type="button" class="quick-chip"
                   hx-post="{% url 'chat:send' active.id %}" hx-target="#messages" hx-swap="innerHTML"
@@ -191,10 +191,10 @@
         <div id="reply-chip" class="hidden mb-2">
           <div class="flex items-center gap-2 rounded-xl border-l-4 border-[#344536] bg-[#F8F3E9] px-3 py-2 text-xs">
             <div class="min-w-0 flex-1">
-              <p class="font-semibold text-[#344536]">Membalas <span id="reply-who"></span></p>
+              <p class="font-semibold text-[#344536]">Replying to <span id="reply-who"></span></p>
               <p id="reply-text" class="truncate text-gray-600"></p>
             </div>
-            <button type="button" id="reply-cancel" class="icon-btn" aria-label="Batalkan balasan"><i class="bi bi-x-lg"></i></button>
+            <button type="button" id="reply-cancel" class="icon-btn" aria-label="Cancel reply"><i class="bi bi-x-lg"></i></button>
           </div>
         </div>
         <form id="message-form" class="flex items-end gap-2"
@@ -202,17 +202,17 @@
               hx-target="#messages" hx-swap="innerHTML">
           <input type="hidden" name="reply_to" id="reply-to-input" value="">
           <details id="attach-menu" class="relative">
-            <summary class="icon-btn" aria-label="Lampirkan"><i class="bi bi-plus-lg"></i></summary>
+            <summary class="icon-btn" aria-label="Attach"><i class="bi bi-plus-lg"></i></summary>
             <div class="absolute bottom-12 left-0 z-20 w-44 rounded-xl border border-[#E8E0D0] bg-white p-1 shadow-lg">
-              <button type="button" data-accept="image/*" class="upload-btn menu-item"><i class="bi bi-image"></i> Foto</button>
-              <button type="button" data-accept="image/*" data-capture="environment" class="upload-btn menu-item"><i class="bi bi-camera"></i> Kamera</button>
-              <button type="button" data-accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt" class="upload-btn menu-item"><i class="bi bi-paperclip"></i> Dokumen</button>
-              <button type="button" popovertarget="location-modal" class="menu-item"><i class="bi bi-geo-alt"></i> Lokasi</button>
+              <button type="button" data-accept="image/*" class="upload-btn menu-item"><i class="bi bi-image"></i> Photo</button>
+              <button type="button" data-accept="image/*" data-capture="environment" class="upload-btn menu-item"><i class="bi bi-camera"></i> Camera</button>
+              <button type="button" data-accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt" class="upload-btn menu-item"><i class="bi bi-paperclip"></i> Document</button>
+              <button type="button" popovertarget="location-modal" class="menu-item"><i class="bi bi-geo-alt"></i> Location</button>
             </div>
           </details>
-          <textarea name="content" rows="1" maxlength="2000" required placeholder="Tulis pesan..."
+          <textarea name="content" rows="1" maxlength="2000" required placeholder="Write a message..."
                     class="max-h-32 min-w-0 flex-1 resize-none rounded-2xl border border-[#E8E0D0] bg-[#F8F3E9] px-4 py-2.5 text-base leading-snug"></textarea>
-          <button class="send-btn" aria-label="Kirim"><i class="bi bi-send-fill"></i></button>
+          <button class="send-btn" aria-label="Send"><i class="bi bi-send-fill"></i></button>
         </form>
         <p id="char-count" class="mt-1 text-right text-xs text-gray-500" hidden></p>
       </div>
@@ -220,7 +220,7 @@
     {% else %}
       <div class="flex flex-1 flex-col items-center justify-center gap-2 text-gray-500">
         <i class="bi bi-chat-dots text-4xl text-[#344536]"></i>
-        <p>Pilih percakapan atau mulai pesan baru</p>
+        <p>Select a conversation or start a new message</p>
       </div>
     {% endif %}
   </section>

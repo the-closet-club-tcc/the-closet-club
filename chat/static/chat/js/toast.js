@@ -1,4 +1,4 @@
-/* showToast(pesan, jenis): notifikasi di pojok kanan bawah, hilang otomatis. */
+/* showToast(message, kind): bottom-right toast notification, disappears automatically. */
 (function () {
   function container() {
     let box = document.getElementById('toast-box');
@@ -15,7 +15,7 @@
     const el = document.createElement('div');
     el.className = 'toast toast--' + kind;
     el.setAttribute('role', kind === 'error' ? 'alert' : 'status');
-    el.textContent = message; // textContent: aman dari XSS
+    el.textContent = message; // textContent: safe from XSS
     container().appendChild(el);
     requestAnimationFrame(() => el.classList.add('toast--show'));
     setTimeout(() => {

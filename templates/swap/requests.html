@@ -4,7 +4,7 @@
 {% block title %}Swap requests | The Closet Club{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'css/swap.css' %}?v=22">
+{% include 'swap/_styles.html' %}
 {% endblock %}
 
 {% block content %}
@@ -15,7 +15,7 @@
             <p>Keep track of the pieces offered to you and the requests you've sent.</p>
         </header>
         {% include 'swap/_navigation.html' with active='requests' %}
-        <nav class="swap-filters" aria-label="Request direction">
+        <nav class="swap-filters sw-flex sw-flex-wrap sw-justify-center" aria-label="Request direction">
             <a href="{% url 'swap:requests_incoming' %}" {% if is_incoming %}aria-current="page"{% endif %}>Incoming{% if pending_incoming_count %} ({{ pending_incoming_count }}){% endif %}</a>
             <a href="{% url 'swap:requests_outgoing' %}" {% if not is_incoming %}aria-current="page"{% endif %}>Outgoing{% if pending_outgoing_count %} ({{ pending_outgoing_count }}){% endif %}</a>
         </nav>
@@ -35,7 +35,7 @@
                     </div>
                     <span class="swap-request-status swap-request-status-{{ proposal.status }}">{{ proposal.get_status_display }}</span>
                 </header>
-                <div class="swap-request-pair">
+                <div class="swap-request-pair sw-grid sw-grid-cols-2 sw-gap-[24px] compact:sw-grid-cols-[1fr] compact:sw-gap-[20px]">
                     {% if not proposal.offered_item_id and not proposal.countered_at %}
                     <div class="swap-counter-placeholder"><p>No counter-offer selected yet.</p></div>
                     {% elif is_incoming %}
