@@ -69,10 +69,14 @@ Setiap unggahan *outfit* dapat ditautkan langsung dengan item pakaian dari *digi
 
 ### 1. Login, Profile, & Reputation (`accounts`)
 Mengelola sistem identitas akun pengguna, keamanan sesi, penanda verifikasi resmi, serta penilaian kredibilitas berbasis transaksi.
-- **Extended User & Validation:** Memperluas `AbstractUser` dengan field kustom seperti foto profil, status centang biru (`is_verified`), bio, dan lokasi domisili. Dilengkapi validasi kelayakan data (nama lengkap dan email valid) sebelum permohonan verifikasi diproses.
+- **Registrasi, Autentikasi, & Profil:** Pengguna dapat mendaftar, login/logout, melihat profil publik, dan mengubah informasi profil serta foto. Profil pribadi dan halaman edit profil hanya dapat diakses setelah login; email tidak ditampilkan pada profil publik.
+- **Extended User & Validation:** Memperluas `AbstractUser` dengan field kustom seperti foto profil, status centang biru (`is_verified`), bio, dan lokasi domisili. Nama depan, nama belakang, serta email harus valid sebelum permohonan verifikasi diproses.
 - **Sinkronisasi Atomik & Race Condition Protection:** Alur persetujuan verifikasi akun oleh admin diamankan menggunakan transaksi database atomik (`transaction.atomic`) dan penguncian baris data (`select_for_update`) guna mencegah manipulasi identitas saat status diubah menjadi *Approved*. Sinyal otomatis (`post_delete`) mencabut status centang biru seketika jika catatan verifikasi dihapus.
 - **Field Locking pada Profil Terverifikasi:** Pada formulir edit profil, pengguna yang telah berstatus terverifikasi secara otomatis dikunci akses pengubahan nama depan, nama belakang, dan emailnya untuk mencegah pemalsuan identitas.
-- **Live Reputation Aggregation:** Perhitungan rata-rata bintang reputasi dihitung secara langsung di tingkat basis data (`Avg`) dan dibulatkan 1 desimal. Validasi tingkat model mencegah pengguna memberikan ulasan ke akun miliknya sendiri.
+- **Penghapusan Akun:** Pengguna dapat menghapus akunnya sendiri setelah mengonfirmasi username dan password. Aksi hanya menerima pengiriman POST dan mengakhiri sesi login setelah akun dihapus.
+- **Ulasan Transaksi:** Ulasan rating 1–5 dan komentar hanya dapat diberikan oleh peserta swap yang sudah selesai; setiap pengguna hanya dapat memberikan satu ulasan untuk tiap swap. Penulis dapat mengedit ulasannya selama 24 jam sejak dibuat.
+- **Filter dan Interaksi Tanpa Reload:** Daftar ulasan dapat difilter menggunakan tanggal mulai dan akhir (inklusif), dengan urutan terbaru lebih dahulu. Pengajuan verifikasi dan pengiriman ulasan menggunakan `fetch` dan respons JSON untuk memperbarui halaman tanpa reload.
+- **Live Reputation Aggregation:** Rata-rata rating ulasan yang diterima dihitung menggunakan agregasi database (`Avg`) dan dibulatkan ke satu angka desimal. Validasi model mencegah pengguna mengulas akunnya sendiri.
 
 ### 2. Feed & Clothing Post (`feed`)
 Kanal interaksi sosial utama yang menampilkan inspirasi busana harian dan pakaian yang tersedia untuk pertukaran.
@@ -227,7 +231,7 @@ Buka peramban dan akses alamat: `http://127.0.0.1:8000/`
 
 Suite pengujian mencakup beberapa modul, antara lain hak akses, integritas model, formulir, alur swap dan chat, serta verifikasi akun.
 
-Untuk menjalankan pengujian pada modul Akun, Autentikasi, dan Reputasi (`accounts`):
+Untuk menjalankan pengujian pada modul Akun, Autentikasi, dan Reputasi (`accounts`), termasuk autentikasi, profil, penghapusan akun, verifikasi, serta pembuatan, validasi, dan batas waktu pengeditan ulasan:
 ```bash
 python manage.py test accounts
 ```
@@ -245,7 +249,7 @@ python manage.py test
 
 | Modul | Penanggung Jawab | Deskripsi Tanggung Jawab |
 |---|---|---|
-| **Login, Profile, & Reputation** (`accounts`) | Ria Lavenia Kharissa — 2506543905 | Autentikasi pengguna, profil kustom, sistem pengajuan verifikasi akun, penguncian data profil, dan ulasan reputasi. |
+| **Login, Profile, & Reputation** (`accounts`) | Ria Lavenia Kharissa — 2506543905 | Autentikasi pengguna, profil kustom, penghapusan akun terkonfirmasi, pengajuan verifikasi, serta ulasan reputasi dengan filter tanggal dan batas edit 24 jam. |
 | **Feed & Clothing Post** (`feed`) | Nauval Adiva Daneshwara — 2506623074 | Pengunggahan inspirasi outfit, katalog busana umum, filter/search item, serta tombol interaksi minat item. |
 | **My Closet** (`closet`) | Nadya Alyssa Azzahra — 2506599270 | Manajemen inventaris pakaian pribadi pengguna (CRUD pakaian, status ketersediaan barter). |
 | **Chat** (`chat`) | Faiz Yusuf Elriki — 2506607921 | Sistem percakapan privat antarpengguna sebelum transaksi tukar, dengan pembaruan pesan melalui polling. |
@@ -367,23 +371,6 @@ Untuk memastikan hasilnya sesuai, saya menguji seluruh fungsionalitas di lingkun
    - https://chatgpt.com/share/6ae48f69-8dc0-83ec-ad67-40ae68942ce5
    - https://chatgpt.com/share/6ae4a054-4a0c-83ec-8542-84ff7ca28c44
 - **Cakupan Penggunaan**:
-   | Bagian | Kontribusi AI | Kontribusi saya |
-   |---|---|---|
-   | Figma | Mengajarkan bagaimana cara mengoperasikan Figma dan memberikan masukan mengenai tata letak, kompenen UI, serta alur interaksi | Menyesuaikan desain dan memperbaiki tampilan secara manual |
-   | Frontend | Mengelaborasi dan memberikan masukan mengenai struktur HTML, CSS, dan JavaScript | Menyesuaikan dengan kebutuhan modul (menyesuaikan kode dengan design Figma dan struktur Django) |
-   | Backend  | Mengelaborasi mengenai tatanan Django yang masih saya kurang pahami | Mengintegrasi kode dengan proyek dan menyesuaikan dengan arsitektur web yang ingin dibangun |
-   | Debugging | Menyarankan cara pembenaran error | Melakukan testing, memperbaiki, dan menguji web secara manual |
-
-- **Strategi Prompting**
-   1. Memberikan konteks dari *The Pandan Club* adalah web slow fashion berbasis Django dengan modul yang saya handle adalah **Swap atau Barter**
-   2. Menentukan kebutuhan fitur: Menjelaskan design seperti apa yang telah saya diskusikan dan disetujui dengan teman kelompok
-   3. Meminta AI menjelaskan/elaborasi bagian yang saya belum pahami/yakin
-   4. Melakukan penyesuaian dan memastikan kembali dengan memberikan pertanyaan lanjutan apabila jawaban yang diberikan AI masih kurang saya pahami/kurang jekas
-   5. Memberi tau AI apabila solusi yang telah saya sesuaikan 
-
-- **Keterbatasan AI dan Penyesuaian Manual**:
-   | Keterbatasan AI | Evaluasi dan Perbaikan Manual |
-   |---|---|
-   | **Penggunaan Data Dummy** | Pada awalnya, AI memberikan kode yang belum terhubung dengan database. Sehingga saya melakukan modifikasi dengan berpacu dari tutorial tutorial dari website PBP untuk mengintegrasikannya dengan Django |
-   | **Interaksi Swipe** | AI memberikan saran untuk melakukan interaksi swipe. Namun, setelah melakukan *brainstorming dengan AI sendiri*, saya terpikirkan bahwa itu berpotensi menyebabkan beberapa permasalahan. Sehingga, saya menyesuaikannya dengan verifikasi kembali apakah pengguna benar-benar ingin melakukan barter atau tidak |
-   | **Implementasi Desain Figma** | AI memberikan gambaran mengenai layout design, tetapi saya merasa desain tersebut terlalu padat dan kurang *eye pleasing*, sehingga saya menyesuaikannya kembali dengan yg saya inginkan |
+  - 
+- **Keterbatasan & Penyesuaian Manual**:
+  - 

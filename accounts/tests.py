@@ -1,12 +1,14 @@
 import io
 import tempfile
+from datetime import timedelta
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.utils import timezone
 from PIL import Image
-from .models import Verification
+from .models import Review, Verification
 
 User = get_user_model()
 
@@ -327,6 +329,62 @@ class ProfileTests(TestCase):
 
         self.user.refresh_from_db()
         self.assertFalse(self.user.is_verified)
+
+
+class DeleteAccountTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="delete_me",
+            email="delete_me@example.com",
+            password="TestDelete123",
+        )
+        self.url = reverse("delete_account")
+
+    def test_delete_account_requires_login(self):
+        response = self.client.get(self.url)
+
+        self.assertRedirects(
+            response,
+            f"{reverse('login')}?next={self.url}",
+        )
+
+    def test_delete_account_confirmation_page(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "accounts/delete_account.html")
+        self.assertContains(response, "Confirm Account Deletion")
+        self.assertContains(response, 'name="username"')
+        self.assertContains(response, 'name="password"')
+
+    def test_delete_account_rejects_incorrect_username_or_password(self):
+        self.client.force_login(self.user)
+        invalid_confirmations = (
+            {"username": "someone_else", "password": "TestDelete123"},
+            {"username": "delete_me", "password": "WrongPassword123"},
+        )
+
+        for confirmation in invalid_confirmations:
+            with self.subTest(confirmation=confirmation):
+                response = self.client.post(self.url, confirmation)
+
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(User.objects.filter(pk=self.user.pk).exists())
+                self.assertEqual(self.client.session.get("_auth_user_id"), str(self.user.pk))
+
+    def test_delete_account_with_correct_credentials_deletes_user_and_logs_out(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            self.url,
+            {"username": "delete_me", "password": "TestDelete123"},
+        )
+
+        self.assertRedirects(response, reverse("home"))
+        self.assertFalse(User.objects.filter(pk=self.user.pk).exists())
+        self.assertNotIn("_auth_user_id", self.client.session)
 
 # public profile test
 class PublicProfileTests(TestCase):
@@ -711,6 +769,75 @@ class ReviewEndpointTests(TestCase):
         response = client.post(self.url, {"rating": "5"})
         self.assertEqual(response.status_code, 403)
         self.assertFalse(self.owner.reviews_received.exists())
+
+
+class EditReviewTests(TestCase):
+    def setUp(self):
+        self.author = User.objects.create_user(username="review_author")
+        self.recipient = User.objects.create_user(username="review_recipient")
+        self.other_user = User.objects.create_user(username="review_other_user")
+        self.review = Review.objects.create(
+            pemberi_review=self.author,
+            penerima_review=self.recipient,
+            rating=4,
+            komentar="Original review",
+        )
+        self.url = reverse("edit_review", kwargs={"review_id": self.review.pk})
+        self.profile_url = reverse(
+            "public_profile", kwargs={"username": self.recipient.username},
+        )
+
+    def test_edit_review_requires_login(self):
+        response = self.client.post(
+            self.url, {"rating": "5", "komentar": "Updated review"},
+        )
+
+        self.assertRedirects(
+            response,
+            f"{reverse('login')}?next={self.url}",
+            fetch_redirect_response=False,
+        )
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.komentar, "Original review")
+
+    def test_author_can_edit_review_within_24_hours(self):
+        self.client.force_login(self.author)
+
+        response = self.client.post(
+            self.url, {"rating": "5", "komentar": "Updated review"},
+        )
+
+        self.assertRedirects(response, self.profile_url)
+        self.review.refresh_from_db()
+        self.assertEqual(str(self.review.rating), "5.0")
+        self.assertEqual(self.review.komentar, "Updated review")
+
+    def test_review_cannot_be_edited_after_24_hours(self):
+        Review.objects.filter(pk=self.review.pk).update(
+            tanggal=timezone.now() - timedelta(hours=24, seconds=1),
+        )
+        self.client.force_login(self.author)
+
+        response = self.client.post(
+            self.url, {"rating": "5", "komentar": "Too late"},
+        )
+
+        self.assertRedirects(response, self.profile_url)
+        self.review.refresh_from_db()
+        self.assertEqual(str(self.review.rating), "4.0")
+        self.assertEqual(self.review.komentar, "Original review")
+
+    def test_other_user_cannot_edit_review(self):
+        self.client.force_login(self.other_user)
+
+        response = self.client.post(
+            self.url, {"rating": "5", "komentar": "Not my review"},
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.review.refresh_from_db()
+        self.assertEqual(str(self.review.rating), "4.0")
+        self.assertEqual(self.review.komentar, "Original review")
 
 
 class AccountUserAdminTests(TestCase):
