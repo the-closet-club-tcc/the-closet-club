@@ -255,9 +255,7 @@
     font-weight: 600;
 }
 
-/* =========================
-   ACTIONS
-   ========================= */
+/* ACTIONS*/
 
 .form-actions {
     grid-column: 1 / -1;
@@ -276,6 +274,7 @@
     text-decoration: none;
     cursor: pointer;
     transition: 0.2s ease;
+    
 }
 
 .btn-cancel {
@@ -296,6 +295,47 @@
 
 .btn-save:hover {
     background-color: var(--tcc-ink);
+}
+
+.delete-account-action {
+    margin-top: 34px;
+    padding: 22px;
+    border: 1px solid rgba(160, 40, 40, 0.22);
+    border-radius: 14px;
+    background: rgba(160, 40, 40, 0.04);
+}
+
+.delete-account-action h3 { margin: 0 0 8px; color: #8b1f1f; }
+.delete-account-action p { color: rgba(28, 41, 31, 0.72); }
+.delete-account-link, .btn-delete-account {
+    display: inline-block;
+    border: 0;
+    border-radius: 10px;
+    padding: 12px 16px;
+    background: #8b1f1f;
+    color: white;
+    font: inherit;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    margin-top: 1rem;
+}
+
+.delete-account-card {
+    max-width: 620px;
+    margin: 32px auto;
+    padding: clamp(22px, 5vw, 40px);
+    border-radius: 20px;
+    background: var(--tcc-white);
+    box-shadow: 0 18px 40px rgba(28, 41, 31, 0.08);
+}
+.delete-account-card h1 { color: #8b1f1f; }
+.delete-account-form { display: grid; gap: 18px; }
+.delete-account-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; }
+
+@media (max-width: 480px) {
+    .delete-account-buttons { flex-direction: column-reverse; }
+    .delete-account-buttons > * { width: 100%; box-sizing: border-box; text-align: center; }
 }
 
 /* =========================

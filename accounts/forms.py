@@ -42,6 +42,31 @@ class EditProfileForm(forms.ModelForm):
         }
 
 
+class DeleteAccountConfirmationForm(forms.Form):
+    username = forms.CharField(label="Username", max_length=150)
+    password = forms.CharField(
+        label="Password",
+        strip=False,
+        widget=forms.PasswordInput,
+    )
+
+    def __init__(self, *args, user, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        username = cleaned_data.get("username")
+        password = cleaned_data.get("password")
+        if username and password and (
+            username != self.user.username or not self.user.check_password(password)
+        ):
+            raise forms.ValidationError(
+                "Username atau password tidak sesuai dengan akun yang sedang login."
+            )
+        return cleaned_data
+
+
 class ReviewForm(forms.ModelForm):
     # rating 1 sampai 5 bintang
     rating = forms.TypedChoiceField(

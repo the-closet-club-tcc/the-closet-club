@@ -8,7 +8,12 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from django.views.decorators.http import require_POST, require_GET
 from django.contrib.auth.decorators import login_required
-from .forms import CustomUserCreationForm, EditProfileForm, ReviewForm
+from .forms import (
+    CustomUserCreationForm,
+    DeleteAccountConfirmationForm,
+    EditProfileForm,
+    ReviewForm,
+)
 from .models import Verification
 from swap.models import SwapRequest
 
@@ -119,6 +124,22 @@ def edit_profile(request):
     }
 
     return render(request, "accounts/edit_profile.html", context)
+
+
+@login_required(login_url="login")
+def delete_account(request):
+    if request.method == "POST":
+        form = DeleteAccountConfirmationForm(request.POST, user=request.user)
+        if form.is_valid():
+            user = request.user
+            logout(request)
+            user.delete()
+            messages.success(request, "Akun kamu berhasil dihapus.")
+            return redirect("home")
+    else:
+        form = DeleteAccountConfirmationForm(user=request.user)
+
+    return render(request, "accounts/delete_account.html", {"form": form})
 
 def public_profile(request, username):
     user_profile = get_object_or_404(User, username=username)

@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Hapus Akun | The Closet Club{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/edit_profile.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="edit-profile-page">
+    <div class="delete-account-card">
+        <h1>Konfirmasi Hapus Akun</h1>
+        <p>Akun <strong>@{{ user.username }}</strong> dan data terkait akan dihapus. Masukkan username serta password untuk melanjutkan.</p>
+
+        {% for error in form.non_field_errors %}
+            <div class="form-message error-message">{{ error }}</div>
+        {% endfor %}
+
+        <form method="post" class="delete-account-form">
+            {% csrf_token %}
+            {% for field in form %}
+                <div class="form-group">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% for error in field.errors %}
+                        <small class="field-error">{{ error }}</small>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+            <div class="delete-account-buttons">
+                <a href="{% url 'edit_profile' %}" class="btn-cancel">Batal</a>
+                <button type="submit" class="btn-delete-account">Hapus Akun Permanen</button>
+            </div>
+        </form>
+    </div>
+</section>
+{% endblock %}
