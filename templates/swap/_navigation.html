@@ -1,4 +1,4 @@
-<nav class="swap-navigation" aria-label="Swap pages">
+<nav class="swap-navigation sw-flex sw-flex-wrap sw-justify-center" aria-label="Swap pages">
     <a href="{% url 'swap:index' %}" {% if active == 'discover' %}aria-current="page"{% endif %}>Discover</a>
     <a href="{% url 'swap:interested' %}" {% if active == 'interested' %}aria-current="page"{% endif %}>Interested items</a>
     <a href="{% if pending_outgoing_count and not pending_incoming_count %}{% url 'swap:requests_outgoing' %}{% else %}{% url 'swap:requests_incoming' %}{% endif %}" {% if active == 'requests' %}aria-current="page"{% endif %}>Swap requests{% if pending_request_count %} <span class="swap-request-count" aria-label="{{ pending_request_count }} requests awaiting your response">{{ pending_request_count }}</span>{% endif %}</a>
