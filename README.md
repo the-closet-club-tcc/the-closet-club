@@ -300,11 +300,14 @@ Berikut adalah dokumentasi keterbukaan penggunaan kecerdasan buatan (*AI Tool Us
 ### 2. Modul 2: Feed & Clothing Post
 - **Nama & NPM**: Nauval Adiva Daneshwara — 2506623074
 - **Tool AI**: ChatGPT / Claude / Gemini
-- **Link Chat**: [Tautan Riwayat Percakapan AI Modul 2](tulis linknya disini)
+- **Link Chat**: [Tautan Claude](https://claude.ai/share/52342f5d-99b8-41d1-8616-3bbb43f87aa7)
 - **Cakupan Penggunaan**:
-  - 
+  - untuk debugging errors atau kebingungan yang saya temukan selama coding website ini
+  - memberi ide hero banner karna saya sudah pusing.
+  - Saya juga meminta Claude AI untuk memberikan saran fitur tambahan ataupun bagian mana yang bisa saya improve untuk membuat modul website nya lebih baik.
 - **Keterbatasan & Penyesuaian Manual**:
-  - 
+  - AI tentunya tidak tau context lengkap apa yang sedang kita kerjakan, lalu ia juga tidak bisa melihat apa yang sudah diupdate oleh teman kita. Disitulah kita harus melihatnya sendiri serta menyesuaikan coding kita dengan bagaimana teman teman kita bekerja.
+  - AI juga suka memberikan baris code yang tidak sesuai dengan struktur projek nya.
 
 ---
 
