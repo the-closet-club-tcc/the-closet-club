@@ -130,7 +130,10 @@ Interaksi pesan langsung antarpengguna untuk bernegosiasi sebelum pertukaran dis
 
 ### Alur Pengajuan Swap / Barter
 Antarmuka pemilihan barang yang ditawarkan dan pelacakan status kesepakatan tukar.
-![Alur Swap](docs/screenshots/swap.png)
+![Discover](./docs/screenshots/swap-discover.png)
+![Interested Items](./docs/screenshots/swap-interested_items.png)
+![Requests Incoming](./docs/screenshots/swap-requests_incoming.png)
+![Requests Outgoing](./docs/screenshots/swap-requests_outgoing.png)
 
 ### Profil Pengguna & Ulasan Reputasi
 Halaman profil yang menampilkan badge terverifikasi dan kalkulasi bintang ulasan.
