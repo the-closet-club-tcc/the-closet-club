@@ -43,9 +43,9 @@ def _send_denied(user, conv):
     """Respons 403 kalau salah satu pihak memblokir, selain itu None."""
     mine, theirs = _blocked_state(user, conv.other_user(user))
     if mine:
-        return HttpResponse('Buka blokir untuk mengirim pesan.', status=403)
+        return HttpResponse('Unblock to send a message.', status=403)
     if theirs:
-        return HttpResponse('Kamu tidak dapat mengirim pesan ke pengguna ini.', status=403)
+        return HttpResponse('You cannot send messages to this user.', status=403)
     return None
 
 
@@ -77,8 +77,8 @@ def _conversation_items(user, active_id=None):
         visible = conv.visible_messages(user)
         last = visible.order_by('-created_at', '-id').first()
         if last is None and conv.cleared_at_for(user):
-            continue  # sudah dihapus dan belum ada pesan baru
-        preview = last.preview_text() if last else 'Belum ada pesan'
+            continue  # cleared and no new messages
+        preview = last.preview_text() if last else 'No messages yet'
         unread = 0 if conv.id == active_id else (
             visible.filter(is_read=False).exclude(sender=user).count()
         )
@@ -207,7 +207,7 @@ def swap_action(request, conversation_id, swap_request_id, action):
     if swap_blocked and action == 'accept' and proposal.status in (
         SwapRequest.Status.PENDING, SwapRequest.Status.COUNTERED,
     ):
-        return HttpResponse('Buka blokir terlebih dahulu sebelum menyetujui penawaran baru.', status=403)
+        return HttpResponse('Unblock first before accepting a new offer.', status=403)
 
     before = {
         'status': proposal.status,
@@ -259,7 +259,7 @@ def swap_action(request, conversation_id, swap_request_id, action):
         if notice and not swap_blocked:
             post_swap_update(conv, request.user, notice)
     else:
-        notice = 'Tidak ada perubahan status. Permintaan mungkin sudah diperbarui atau aksi ini tidak lagi tersedia.'
+        notice = 'No status changes. The request may have been updated or this action is no longer available.'
 
     if request.headers.get('HX-Request', '').lower() == 'true':
         return _render_messages(request, conv, swap_notice=notice)
@@ -360,13 +360,13 @@ def send_location(request, conversation_id):
         lat = Decimal(request.POST.get('lat', '')).quantize(Decimal('0.000001'))
         lon = Decimal(request.POST.get('lon', '')).quantize(Decimal('0.000001'))
     except (InvalidOperation, ValueError):
-        return HttpResponseBadRequest('Koordinat tidak valid')
+        return HttpResponseBadRequest('Invalid coordinates')
     if not (lat.is_finite() and lon.is_finite()
             and -90 <= lat <= 90 and -180 <= lon <= 180):
-        return HttpResponseBadRequest('Koordinat tidak valid')
+        return HttpResponseBadRequest('Invalid coordinates')
     name = request.POST.get('name', '').strip()[:150]
     if not name:
-        return HttpResponseBadRequest('Nama tempat wajib diisi')
+        return HttpResponseBadRequest('Location name is required')
     Message.objects.create(
         conversation=conv, sender=request.user, message_type='location',
         place_name=name, address=request.POST.get('address', '').strip()[:255],
@@ -378,8 +378,8 @@ def send_location(request, conversation_id):
 MAX_UPLOAD = 10 * 1024 * 1024
 MAX_MESSAGES = 200
 QUICK_REPLIES = [
-    'Masih tersedia?', 'Boleh nego?', 'Ukurannya muat?',
-    'Bisa ketemu hari ini?', 'Terima kasih!',
+    'Still available?', 'Is price negotiable?', 'Does it fit true to size?',
+    'Can we meet today?', 'Thank you!',
 ]
 IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
 DOC_EXTS = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt'}
@@ -389,7 +389,7 @@ def _normalize_image(data):
     Image.open(io.BytesIO(data)).verify()
     img = Image.open(io.BytesIO(data))
     if img.format not in {'JPEG', 'PNG', 'WEBP', 'GIF'}:
-        raise ValueError('format tidak didukung')
+        raise ValueError('Unsupported format')
     if img.format == 'JPEG':
         img.draft('RGB', (2560, 2560))    
     img = ImageOps.exif_transpose(img).convert('RGB')
@@ -407,11 +407,11 @@ def send_attachment(request, conversation_id):
         return denied    
     upload = request.FILES.get('file')
     if upload is None:
-        return HttpResponseBadRequest('Pilih file dulu')
+        return HttpResponseBadRequest('Please select a file first')
     try:
         name = get_valid_filename(os.path.basename(upload.name))[:255]
     except SuspiciousFileOperation:
-        return HttpResponseBadRequest('Nama file tidak valid')
+        return HttpResponseBadRequest('Invalid filename')
 
     ext = os.path.splitext(name)[1].lower()
     if ext in IMAGE_EXTS:
@@ -419,16 +419,16 @@ def send_attachment(request, conversation_id):
     elif ext in DOC_EXTS:
         kind, limit = Message.MessageType.FILE, MAX_UPLOAD
     else:
-        return HttpResponseBadRequest('Tipe file tidak didukung')
+        return HttpResponseBadRequest('Unsupported file type')
     if upload.size > limit:
-        return HttpResponseBadRequest(f'Ukuran file maksimal {limit // (1024 * 1024)} MB')
+        return HttpResponseBadRequest(f'Maximum file size is {limit // (1024 * 1024)} MB')
 
     data = upload.read()
     if kind == Message.MessageType.IMAGE:
         try:
             data = _normalize_image(data)
         except Exception:
-            return HttpResponseBadRequest('File gambar tidak valid')
+            return HttpResponseBadRequest('Invalid image file')
         ctype = 'image/jpeg'
         name = os.path.splitext(name)[0] + '.jpg'
     else:
@@ -476,17 +476,17 @@ def report(request, conversation_id):
     form = ReportForm(request.POST)
     if not form.is_valid():
         text = ' '.join(e for errs in form.errors.values() for e in errs)
-        return HttpResponseBadRequest(text or 'Laporan tidak valid.')
+        return HttpResponseBadRequest(text or 'Invalid report.')
 
     target = None
     raw = request.POST.get('message_id', '')
     if raw:
         if not raw.isdigit():
-            return HttpResponseBadRequest('Pesan yang dilaporkan tidak ditemukan.')
-        # hanya pesan lawan bicara di percakapan ini
+            return HttpResponseBadRequest('Reported message not found.')
+        # only recipient messages in this conversation
         target = conv.visible_messages(request.user).filter(pk=int(raw), sender=other).first()
         if target is None:
-            return HttpResponseBadRequest('Pesan yang dilaporkan tidak ditemukan.')
+            return HttpResponseBadRequest('Reported message not found.')
 
     obj = form.save(commit=False)
     obj.reporter = request.user

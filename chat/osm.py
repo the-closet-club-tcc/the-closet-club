@@ -11,9 +11,9 @@ CACHE_SECONDS = 60 * 60 * 6
 
 # Filter opsional untuk mempersempit hasil
 CATEGORIES = {
-    'stasiun': 'stasiun',
-    'minimarket': 'minimarket',
-    'halte': 'halte',
+    'station': 'station',
+    'convenience_store': 'convenience store',
+    'bus_stop': 'bus stop',
 }
 
 def _short_address(display):
