@@ -1,9 +1,10 @@
-from django.urls import path
+from django.urls import path, include
 from . import views
 
 app_name = 'chat'
 
 urlpatterns = [
+    path('api/', include('chat.api.urls')),
     path('', views.chat_index, name='index'),
     path('<int:conversation_id>/', views.chat_index, name='room'),
     path('<int:conversation_id>/messages/', views.messages_partial, name='messages'),
