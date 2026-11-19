@@ -8,9 +8,19 @@ class UserMiniSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     username = serializers.CharField()
     is_verified = serializers.SerializerMethodField()
+    avatar = serializers.SerializerMethodField()
 
     def get_is_verified(self, obj):
         return bool(getattr(obj, 'is_verified', False))
+
+    def get_avatar(self, obj):
+        if not obj.foto_profil:
+            return None
+        url = obj.foto_profil.url
+        request = self.context.get('request')
+        if request and url.startswith('/'):
+            return request.build_absolute_uri(url)  # lokal: /media/... jadi absolut
+        return url  # Cloudinary sudah absolut
 
 
 class ReplyPreviewSerializer(serializers.Serializer):
