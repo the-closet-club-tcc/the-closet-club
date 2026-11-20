@@ -29,6 +29,7 @@ urlpatterns = [
     path('accounts/', include('accounts.urls')),
     path('swap/', include('swap.urls')),
     path('closet/', include('closet.urls')),
+    path('api/accounts/', include('accounts.api_urls')),
 ]
 
 if settings.DEBUG:
