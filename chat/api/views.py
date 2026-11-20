@@ -85,3 +85,42 @@ class MessageListCreateAPI(ChatAPIView):
         )
         _mark_sent(conv, request.user)
         return Response(MessageSerializer(msg, context={'request': request}).data, status=201)
+
+class StartConversationAPI(ChatAPIView):
+    def post(self, request):
+        raw = str(request.data.get('user_id', ''))
+        if not raw.isdigit():
+            return Response({'detail': 'A valid user_id is required.'}, status=400)
+        other = get_object_or_404(get_user_model(), pk=int(raw))
+        if other == request.user:
+            return Response({'detail': 'You cannot message yourself.'}, status=400)
+        if any(_blocked_state(request.user, other)):
+            return Response({'detail': 'Cannot start conversation with this user.'}, status=403)
+
+        conv = Conversation.objects.filter(
+            Q(user1=request.user, user2=other) | Q(user1=other, user2=request.user)
+        ).first()
+        if conv is None:
+            conv = Conversation.objects.create(user1=request.user, user2=other, accepted=False)
+
+        item_id = str(request.data.get('item_id', ''))
+        if item_id.isdigit():
+            conv.item_id = int(item_id)
+            conv.item_name = str(request.data.get('item_name', ''))[:150]
+            conv.save()
+        return Response({'id': conv.id, 'username': other.username})
+
+
+class UserSearchAPI(ChatAPIView):
+    def get(self, request):
+        q = request.query_params.get('q', '').strip()[:50]
+        blocked_ids = set(
+            Block.objects.filter(blocker=request.user).values_list('blocked_id', flat=True)
+        ) | set(
+            Block.objects.filter(blocked=request.user).values_list('blocker_id', flat=True)
+        )
+        qs = get_user_model().objects.exclude(pk=request.user.pk).exclude(pk__in=blocked_ids)
+        if q:
+            qs = qs.filter(username__icontains=q)
+        users = qs.order_by('username')[:20]
+        return Response(UserMiniSerializer(users, many=True, context={'request': request}).data)    
