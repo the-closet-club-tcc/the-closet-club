@@ -261,3 +261,53 @@ class SendLocationAPI(ChatAPIView):
         )
         _mark_sent(conv, request.user)
         return Response(MessageSerializer(msg, context={'request': request}).data, status=201)
+
+class SendAttachmentAPI(ChatAPIView):
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, conversation_id):
+        conv = _get_conversation(request.user, conversation_id)
+        denied = _send_denied(request.user, conv)
+        if denied:
+            return Response({'detail': denied.content.decode()}, status=denied.status_code)
+
+        upload = request.FILES.get('file')
+        if upload is None:
+            return Response({'detail': 'Please select a file first.'}, status=400)
+        try:
+            name = get_valid_filename(os.path.basename(upload.name))[:255]
+        except SuspiciousFileOperation:
+            return Response({'detail': 'Invalid filename.'}, status=400)
+
+        ext = os.path.splitext(name)[1].lower()
+        if ext in IMAGE_EXTS:
+            kind = Message.MessageType.IMAGE
+        elif ext in DOC_EXTS:
+            kind = Message.MessageType.FILE
+        else:
+            return Response({'detail': 'Unsupported file type.'}, status=400)
+        if upload.size > MAX_UPLOAD:
+            return Response(
+                {'detail': f'Maximum file size is {MAX_UPLOAD // (1024 * 1024)} MB.'},
+                status=400,
+            )
+
+        data = upload.read()
+        if kind == Message.MessageType.IMAGE:
+            try:
+                data = _normalize_image(data)
+            except Exception:
+                return Response({'detail': 'Invalid image file.'}, status=400)
+            ctype = 'image/jpeg'
+            name = os.path.splitext(name)[0] + '.jpg'
+        else:
+            ctype = mimetypes.guess_type(name)[0] or 'application/octet-stream'
+
+        with transaction.atomic():
+            msg = Message.objects.create(
+                conversation=conv, sender=request.user, message_type=kind,
+                attachment_name=name, attachment_type=ctype, attachment_size=len(data),
+            )
+            Attachment.objects.create(message=msg, data=data)
+        _mark_sent(conv, request.user)
+        return Response(MessageSerializer(msg, context={'request': request}).data, status=201)
