@@ -1,9 +1,10 @@
-from django.urls import path
+from django.urls import include, path
 from . import views
 
 app_name = 'swap'
 
 urlpatterns = [
+    path('api/', include('swap.api.urls')),
     path('', views.swap_page, name='index'),
     path('interested/', views.interested_items, name='interested'),
     path('items/<int:pk>/interest/', views.save_interest, name='save_interest'),
