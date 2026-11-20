@@ -214,3 +214,50 @@ class ReportAPI(ChatAPIView):
         obj.message_excerpt = target.preview_text()[:300] if target else ''
         obj.save()
         return Response({'status': 'ok'})
+
+def _place_field(place, key):
+    return place[key] if isinstance(place, dict) else getattr(place, key)
+
+
+class PlaceSearchAPI(ChatAPIView):
+    def get(self, request, conversation_id):
+        _get_conversation(request.user, conversation_id)
+        q = request.query_params.get('q', '').strip()[:100]
+        category = request.query_params.get('category', '')
+        results = search_places(q, category) if q else []
+        return Response([
+            {
+                'name': _place_field(p, 'name'),
+                'address': _place_field(p, 'address'),
+                'lat': float(_place_field(p, 'lat')),
+                'lon': float(_place_field(p, 'lon')),
+            }
+            for p in results
+        ])
+
+
+class SendLocationAPI(ChatAPIView):
+    def post(self, request, conversation_id):
+        conv = _get_conversation(request.user, conversation_id)
+        denied = _send_denied(request.user, conv)
+        if denied:
+            return Response({'detail': denied.content.decode()}, status=denied.status_code)
+        try:
+            lat = Decimal(str(request.data.get('lat', ''))).quantize(Decimal('0.000001'))
+            lon = Decimal(str(request.data.get('lon', ''))).quantize(Decimal('0.000001'))
+        except (InvalidOperation, ValueError):
+            return Response({'detail': 'Invalid coordinates.'}, status=400)
+        if not (lat.is_finite() and lon.is_finite()
+                and -90 <= lat <= 90 and -180 <= lon <= 180):
+            return Response({'detail': 'Invalid coordinates.'}, status=400)
+        name = str(request.data.get('name', '')).strip()[:150]
+        if not name:
+            return Response({'detail': 'Location name is required.'}, status=400)
+
+        msg = Message.objects.create(
+            conversation=conv, sender=request.user, message_type='location',
+            place_name=name, address=str(request.data.get('address', '')).strip()[:255],
+            latitude=lat, longitude=lon,
+        )
+        _mark_sent(conv, request.user)
+        return Response(MessageSerializer(msg, context={'request': request}).data, status=201)
