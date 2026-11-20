@@ -150,3 +150,67 @@ class MessageDeleteAPI(ChatAPIView):
         _get_conversation(request.user, msg.conversation_id)
         msg.delete()
         return Response({'status': 'ok'})    
+
+class AcceptConversationAPI(ChatAPIView):
+    def post(self, request, conversation_id):
+        conv = _get_conversation(request.user, conversation_id)
+        if request.user.pk == conv.user2_id and not conv.accepted:
+            conv.accepted = True
+            conv.save(update_fields=['accepted'])
+        return Response({'status': 'ok'})
+
+
+class DeleteConversationAPI(ChatAPIView):
+    def post(self, request, conversation_id):
+        conv = _get_conversation(request.user, conversation_id)
+        now = timezone.now()
+        if request.user.pk == conv.user1_id:
+            conv.cleared_at_user1 = now
+            conv.save(update_fields=['cleared_at_user1'])
+        else:
+            conv.cleared_at_user2 = now
+            conv.save(update_fields=['cleared_at_user2'])
+        return Response({'status': 'ok'})
+
+
+class BlockAPI(ChatAPIView):
+    def post(self, request, conversation_id):
+        conv = _get_conversation(request.user, conversation_id)
+        Block.objects.get_or_create(blocker=request.user, blocked=conv.other_user(request.user))
+        return Response({'status': 'ok'})
+
+
+class UnblockAPI(ChatAPIView):
+    def post(self, request, conversation_id):
+        conv = _get_conversation(request.user, conversation_id)
+        Block.objects.filter(
+            blocker=request.user, blocked=conv.other_user(request.user),
+        ).delete()
+        return Response({'status': 'ok'})
+
+
+class ReportAPI(ChatAPIView):
+    def post(self, request, conversation_id):
+        conv = _get_conversation(request.user, conversation_id)
+        other = conv.other_user(request.user)
+        form = ReportForm(request.data)
+        if not form.is_valid():
+            text = ' '.join(e for errs in form.errors.values() for e in errs)
+            return Response({'detail': text or 'Invalid report.'}, status=400)
+
+        target = None
+        raw = str(request.data.get('message_id') or '')
+        if raw:
+            if not raw.isdigit():
+                return Response({'detail': 'Reported message not found.'}, status=400)
+            target = conv.visible_messages(request.user).filter(pk=int(raw), sender=other).first()
+            if target is None:
+                return Response({'detail': 'Reported message not found.'}, status=400)
+
+        obj = form.save(commit=False)
+        obj.reporter = request.user
+        obj.reported_user = other
+        obj.message = target
+        obj.message_excerpt = target.preview_text()[:300] if target else ''
+        obj.save()
+        return Response({'status': 'ok'})
