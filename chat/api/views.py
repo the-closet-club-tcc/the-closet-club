@@ -1,16 +1,32 @@
+from decimal import Decimal, InvalidOperation
+import mimetypes
+import os
+
+from django.contrib.auth import get_user_model
+from django.core.exceptions import SuspiciousFileOperation
+from django.db import transaction
+from django.db.models import Q
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from django.utils.text import get_valid_filename
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from chat.models import Message
+from chat.forms import ReportForm
+from chat.models import Attachment, Block, Conversation, Message
+from chat.osm import search_places
 from chat.services import sync_swap_cards, sync_swap_conversations
 from chat.views import (
+    DOC_EXTS, IMAGE_EXTS, MAX_UPLOAD,
     _blocked_state, _conversation_items, _get_conversation,
-    _mark_sent, _recent_messages, _send_denied,
+    _mark_sent, _normalize_image, _recent_messages, _send_denied,
 )
 from .authentication import CsrfExemptSessionAuthentication
-from .serializers import ConversationItemSerializer, MessageSerializer
-
+from .serializers import (
+    ConversationItemSerializer, MessageSerializer, UserMiniSerializer, profile_summary,
+)
 
 class ChatAPIView(APIView):
     authentication_classes = [CsrfExemptSessionAuthentication]
@@ -36,9 +52,12 @@ class MessageListCreateAPI(ChatAPIView):
         return Response({
             'conversation': {
                 'id': conv.id,
+                'other': profile_summary(other, request),
                 'other_username': other.username,
+                'item_id': conv.item_id,
                 'item_name': conv.item_name,
                 'accepted': conv.accepted,
+                'is_request': (not conv.accepted) and request.user.pk == conv.user2_id,
                 'blocked_by_me': blocked_by_me,
                 'blocked_me': blocked_me,
             },
