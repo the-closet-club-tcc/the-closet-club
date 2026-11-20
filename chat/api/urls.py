@@ -1,4 +1,5 @@
 from django.urls import path
+from .dev_login import DevLoginAPI
 from . import views
 
 urlpatterns = [
@@ -26,4 +27,5 @@ urlpatterns = [
     path('messages/<int:message_id>/delete/',
          views.MessageDeleteAPI.as_view(), name='api_delete'),
     path('users/', views.UserSearchAPI.as_view(), name='api_users'),
+    path('dev-login/', DevLoginAPI.as_view(), name='api_dev_login'),
 ]
