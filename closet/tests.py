@@ -130,6 +130,17 @@ class MyClosetViewTests(ClosetTestBase):
         self.assertEqual(len(self.client.get(url).context['page'].object_list), 12)
         self.assertEqual(len(self.client.get(url, {'page': 2}).context['page'].object_list), 1)
 
+    def test_sort(self):
+        self.make_item(name='Wool Coat', size='L', condition='new', 
+        status='barter')                                              
+        self.make_item(name='Linen Shirt', size='M', condition='fair')  
+        self.login(self.alice)                                        
+        url = reverse('closet:index')   
+        resp = self.client.get(url)     
+        names = [item.name for item in resp.context['page'].object_list]   
+        self.assertTrue(names[0] == 'Linen Shirt')                      
+        
+
 
 class CreateEditDeleteTests(ClosetTestBase):
     def valid_data(self, **over):
