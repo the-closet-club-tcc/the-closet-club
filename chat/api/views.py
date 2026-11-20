@@ -123,4 +123,30 @@ class UserSearchAPI(ChatAPIView):
         if q:
             qs = qs.filter(username__icontains=q)
         users = qs.order_by('username')[:20]
-        return Response(UserMiniSerializer(users, many=True, context={'request': request}).data)    
+        return Response(UserMiniSerializer(users, many=True, context={'request': request}).data)
+
+class MessageEditAPI(ChatAPIView):
+    def post(self, request, message_id):
+        msg = get_object_or_404(
+            Message, pk=message_id, sender=request.user, message_type='text',
+        )
+        _get_conversation(request.user, msg.conversation_id)
+        content = str(request.data.get('content', '')).strip()[:2000]
+        if not content:
+            return Response({'detail': 'Message cannot be empty.'}, status=400)
+        if content != msg.content:
+            msg.content = content
+            msg.is_edited = True
+            msg.save()
+        return Response(MessageSerializer(msg, context={'request': request}).data)
+
+
+class MessageDeleteAPI(ChatAPIView):
+    def post(self, request, message_id):
+        msg = get_object_or_404(
+            Message.objects.exclude(message_type='swap'),
+            pk=message_id, sender=request.user,
+        )
+        _get_conversation(request.user, msg.conversation_id)
+        msg.delete()
+        return Response({'status': 'ok'})    
