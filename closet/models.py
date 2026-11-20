@@ -5,6 +5,7 @@ from django.db import models, transaction
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
 from django.urls import reverse
+from django.db.models.functions import Lower
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +80,7 @@ class Clothing(models.Model):
     objects = ClothingQuerySet.as_manager()
 
     class Meta:
-        ordering = ['-created_at', '-id']
+        ordering = [Lower('name'), '-id']
         verbose_name_plural = 'clothes'
         indexes = [models.Index(fields=['owner', 'status'])]
 

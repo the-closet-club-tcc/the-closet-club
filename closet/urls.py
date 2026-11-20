@@ -1,10 +1,11 @@
-from django.urls import path
+from django.urls import include, path
 
 from . import views
 
 app_name = 'closet'
 
 urlpatterns = [
+    path('api/', include('closet.api.urls')),
     path('', views.my_closet, name='index'),
     path('add/', views.item_create, name='item_add'),
     path('item/<int:pk>/', views.item_detail, name='item_detail'),
